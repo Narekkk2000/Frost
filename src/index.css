@@ -1,0 +1,240 @@
+:root {
+  --bg: #040709;
+  --ice: #e3eef7;
+  --ice-dim: rgba(227, 238, 247, 0.62);
+  --ice-blue: #a9cdee;
+  --ember: #f0b394;
+  --font-display: 'Fraunces', 'Cormorant Garamond', Georgia, serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ice);
+  font-family: var(--font-display);
+  overflow-x: hidden;
+}
+
+::selection {
+  background: rgba(169, 205, 238, 0.35);
+}
+
+/* the tall track that drives the scrub */
+.stage {
+  height: 520vh;
+}
+
+.viewport {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+.ice {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: saturate(0.82) contrast(1.06) brightness(0.94);
+  transition: opacity 1.2s ease;
+}
+
+/* frame-scrubbed canvas sits on top of the video and takes over once ready */
+.ice-canvas {
+  transition-duration: 0.5s;
+}
+
+/* cold vignette so type stays legible over bright ice */
+.scrim {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(120% 95% at 50% 42%, transparent 42%, rgba(4, 7, 9, 0.6) 100%),
+    linear-gradient(
+      180deg,
+      rgba(4, 7, 9, 0.42) 0%,
+      transparent 26%,
+      transparent 72%,
+      rgba(4, 7, 9, 0.55) 100%
+    );
+}
+
+.hud {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  padding: 1.5rem 1.75rem;
+  z-index: 4;
+}
+
+.hud-top {
+  top: 0;
+}
+
+.hud-bottom {
+  bottom: 0;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 400;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ice-dim);
+  white-space: nowrap;
+}
+
+.temp {
+  font-variant-numeric: tabular-nums;
+}
+
+.hint {
+  animation: bob 2.2s ease-in-out infinite;
+}
+
+@keyframes bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(5px);
+  }
+}
+
+.meter {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  transform-origin: 0 50%;
+  background: linear-gradient(90deg, var(--ice-blue), var(--ember));
+  z-index: 5;
+}
+
+/* phrases live in the dark "sky" band above the ice, where the frame is calm */
+.phrase {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  align-content: start;
+  justify-items: center;
+  text-align: center;
+  padding: 11vh 7vw 0;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.headline {
+  font-weight: 400;
+  font-size: clamp(2.3rem, 6vw, 5.2rem);
+  line-height: 1.03;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--ice);
+  text-shadow: 0 2px 55px rgba(4, 7, 9, 0.85);
+}
+
+/* each word starts frosted (blurred, dropped, dim) and "defrosts" into focus */
+.word {
+  display: inline-block;
+  opacity: 0;
+  filter: blur(18px);
+  transform: translateY(0.7em) scale(1.06);
+}
+
+.reveal .word {
+  animation: defrost 1.05s cubic-bezier(0.2, 0.65, 0.15, 1) both;
+  animation-delay: calc(var(--wi, 0) * 0.11s);
+}
+
+@keyframes defrost {
+  0% {
+    opacity: 0;
+    filter: blur(18px);
+    transform: translateY(0.7em) scale(1.06);
+  }
+  55% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateY(0) scale(1);
+  }
+}
+
+.lede {
+  font-weight: 300;
+  font-style: italic;
+  font-size: clamp(1.7rem, 3.6vw, 3rem);
+  letter-spacing: 0.04em;
+  color: var(--ice);
+  text-shadow: 0 2px 40px rgba(4, 7, 9, 0.75);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.sub {
+  margin-top: 1.5rem;
+}
+
+.line {
+  font-weight: 300;
+  font-size: clamp(1.9rem, 4.6vw, 3.9rem);
+  line-height: 1.15;
+  letter-spacing: 0.02em;
+  text-shadow: 0 2px 40px rgba(4, 7, 9, 0.75);
+}
+
+.line em {
+  font-style: italic;
+  letter-spacing: 0.03em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hint,
+  .reveal .word {
+    animation: none;
+  }
+  .word {
+    opacity: 1;
+    filter: none;
+    transform: none;
+  }
+  .ice {
+    transition: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .hud {
+    padding: 1.1rem 1rem;
+  }
+  .mono {
+    font-size: 0.58rem;
+    letter-spacing: 0.16em;
+  }
+}
