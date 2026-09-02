@@ -78,9 +78,8 @@ export function useMeltScrub(manifestUrl: string, variant: string) {
       const b = frames[Math.min(i + 1, loadedCount - 1)] ?? a
       const mix = clamp01(pos - i)
 
-      // Cover-fit. The frame sets are already shaped per device (landscape for
-      // desktop, portrait reels-style for mobile), so cover fills cleanly on
-      // both without cropping the ice block.
+      // Cover-fit, full-bleed. Frame sets are shaped per device (landscape for
+      // desktop, portrait reels-style for mobile), so cover fills cleanly.
       const scale = Math.max(canvas.width / a.width, canvas.height / a.height)
       const dw = a.width * scale
       const dh = a.height * scale

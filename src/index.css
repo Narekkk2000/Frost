@@ -4,8 +4,8 @@
   --ice-dim: rgba(227, 238, 247, 0.62);
   --ice-blue: #a9cdee;
   --ember: #f0b394;
-  --font-display: 'Fraunces', 'Cormorant Garamond', Georgia, serif;
-  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+  --font-title: 'Titan One', system-ui, sans-serif;
+  --font-body: 'Poppins', system-ui, sans-serif;
 }
 
 * {
@@ -17,7 +17,7 @@
 body {
   background: var(--bg);
   color: var(--ice);
-  font-family: var(--font-display);
+  font-family: var(--font-body);
   overflow-x: hidden;
 }
 
@@ -82,6 +82,7 @@ body {
 
 .hud-top {
   top: 0;
+  justify-content: flex-end;
 }
 
 /* variant switcher — centered in the top bar, between the corner labels */
@@ -126,12 +127,13 @@ body {
 
 .hud-bottom {
   bottom: 0;
+  justify-content: center;
 }
 
 .mono {
-  font-family: var(--font-mono);
+  font-family: var(--font-body);
   font-size: 0.68rem;
-  font-weight: 400;
+  font-weight: 500;
   letter-spacing: 0.22em;
   text-transform: uppercase;
   color: var(--ice-dim);
@@ -142,8 +144,23 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-.hint {
-  animation: bob 2.2s ease-in-out infinite;
+/* the scroll prompt — deliberately prominent */
+.scroll-cue {
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 0.95rem;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--ice);
+  white-space: nowrap;
+  text-shadow: 0 2px 24px rgba(4, 7, 9, 0.8);
+}
+
+.scroll-cue-arrow {
+  display: inline-block;
+  margin-left: 0.5em;
+  color: var(--ice-blue);
+  animation: bob 1.8s ease-in-out infinite;
 }
 
 @keyframes bob {
@@ -175,16 +192,29 @@ body {
   align-content: start;
   justify-items: center;
   text-align: center;
-  padding: 11vh 7vw 0;
+  padding: 7vh 7vw 0;
   z-index: 3;
   pointer-events: none;
 }
 
-.headline {
+/* the hero — Titan One, chunky and playful */
+.hero-title {
+  font-family: var(--font-title);
   font-weight: 400;
-  font-size: clamp(2.3rem, 6vw, 5.2rem);
-  line-height: 1.03;
-  letter-spacing: 0.02em;
+  font-size: clamp(2.3rem, 5.6vw, 5rem);
+  line-height: 1.02;
+  letter-spacing: 0.005em;
+  color: var(--ice);
+  text-shadow: 0 3px 60px rgba(4, 7, 9, 0.9);
+}
+
+/* the closing beat — Poppins, bold and spaced */
+.headline {
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: clamp(2.1rem, 5.5vw, 4.6rem);
+  line-height: 1.05;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--ice);
   text-shadow: 0 2px 55px rgba(4, 7, 9, 0.85);
@@ -255,7 +285,7 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .hint,
+  .scroll-cue-arrow,
   .reveal .word {
     animation: none;
   }

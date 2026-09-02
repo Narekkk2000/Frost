@@ -37,7 +37,6 @@ export default function App() {
 
   const celsius = -18 + 42 * progress
   const temp = `${celsius < 0 ? '−' : '+'}${Math.abs(celsius).toFixed(1)}°C`
-  const mass = `${String(Math.round((1 - progress) * 100)).padStart(3, '0')}%`
   const tempColor = `color-mix(in oklab, var(--ice-blue) ${Math.round((1 - progress) * 100)}%, var(--ember))`
 
   return (
@@ -52,7 +51,6 @@ export default function App() {
         <div className="scrim" />
 
         <header className="hud hud-top">
-          <span className="mono">Frost — field notes</span>
           <span className="mono temp" style={{ color: tempColor }}>
             {temp}
           </span>
@@ -79,7 +77,7 @@ export default function App() {
             transform: `translateY(${drift(progress, -0.22, 0.22)}px)`,
           }}
         >
-          <h1 className={`headline${progress <= 0.22 ? ' reveal' : ''}`}>
+          <h1 className={`hero-title${progress <= 0.22 ? ' reveal' : ''}`}>
             {words('The legend is defrosting.')}
           </h1>
         </section>
@@ -109,9 +107,8 @@ export default function App() {
         </section>
 
         <footer className="hud hud-bottom">
-          <span className="mono">specimen № 4530 — mass {mass}</span>
-          <span className="mono hint" style={{ opacity: 1 - ramp(progress, 0.01, 0.06) }}>
-            scroll to melt ↓
+          <span className="scroll-cue" style={{ opacity: 1 - ramp(progress, 0.02, 0.09) }}>
+            Scroll to melt <span className="scroll-cue-arrow">↓</span>
           </span>
         </footer>
 
