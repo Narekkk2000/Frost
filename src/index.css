@@ -84,6 +84,46 @@ body {
   top: 0;
 }
 
+/* variant switcher — centered in the top bar, between the corner labels */
+.tabs {
+  position: absolute;
+  top: 1.4rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 1.4rem;
+  z-index: 6;
+  pointer-events: auto;
+}
+
+.tab {
+  position: relative;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.3rem 0;
+  color: var(--ice-dim);
+  transition: color 0.35s ease;
+}
+
+.tab:hover {
+  color: var(--ice);
+}
+
+.tab.active {
+  color: var(--ice);
+}
+
+.tab.active::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -0.35rem;
+  height: 1px;
+  background: linear-gradient(90deg, var(--ice-blue), var(--ember));
+}
+
 .hud-bottom {
   bottom: 0;
 }

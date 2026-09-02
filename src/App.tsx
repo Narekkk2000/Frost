@@ -1,5 +1,12 @@
 import type { CSSProperties } from 'react'
+import { useState } from 'react'
 import { useMeltScrub } from './useMeltScrub'
+
+/** the two melt variants, each a tab (ids match public/frames/manifest.json) */
+const VARIANTS = [
+  { id: 'deepfreeze', label: 'Deep Freeze' },
+  { id: 'meltdown', label: 'Meltdown' },
+]
 
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v))
 
@@ -25,7 +32,8 @@ const between = (p: number, a: number, b: number, c: number, d: number) =>
 const drift = (p: number, a: number, d: number) => (0.5 - ramp(p, a, d)) * 48
 
 export default function App() {
-  const { canvasRef, progress, ready } = useMeltScrub('/frames/manifest.json')
+  const [variant, setVariant] = useState(VARIANTS[0].id)
+  const { canvasRef, progress, ready } = useMeltScrub('/frames/manifest.json', variant)
 
   const celsius = -18 + 42 * progress
   const temp = `${celsius < 0 ? '−' : '+'}${Math.abs(celsius).toFixed(1)}°C`
@@ -49,6 +57,20 @@ export default function App() {
             {temp}
           </span>
         </header>
+
+        <nav className="tabs" aria-label="Melt variant">
+          {VARIANTS.map((v) => (
+            <button
+              key={v.id}
+              type="button"
+              className={`tab mono${variant === v.id ? ' active' : ''}`}
+              aria-pressed={variant === v.id}
+              onClick={() => setVariant(v.id)}
+            >
+              {v.label}
+            </button>
+          ))}
+        </nav>
 
         <section
           className="phrase"

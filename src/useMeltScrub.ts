@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v))
 
-type Manifest = { count: number }
+type Tier = { count: number; dir: string }
+type VariantFrames = { desktop: Tier; mobile: Tier }
+type Manifest = Record<string, VariantFrames>
 
 /**
  * Scroll-scrubbed melt using a pre-baked image sequence.
@@ -13,9 +15,13 @@ type Manifest = { count: number }
  * no frame extraction on the main thread, so there is no load-time freeze /
  * "2fps" at any point. Rendering is the crossfade path that felt smooth: each
  * scroll position blends the two neighbouring frames into one dissolving image.
+ *
+ * `variant` selects which melt (a tab) to load; switching it swaps the frame
+ * set and frees the previous one, so only one variant is ever in memory.
  */
-export function useMeltScrub(manifestUrl: string) {
+export function useMeltScrub(manifestUrl: string, variant: string) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const inited = useRef(false)
   const [progress, setProgress] = useState(0)
   const [ready, setReady] = useState(false)
 
@@ -25,9 +31,13 @@ export function useMeltScrub(manifestUrl: string) {
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    // Always open frozen at the top, even if the browser restored scroll.
-    if ('scrollRestoration' in history) history.scrollRestoration = 'manual'
-    window.scrollTo(0, 0)
+    // Open frozen at the top on first load (even if the browser restored a
+    // scroll position). On a later tab switch, keep the scroll where it is.
+    if (!inited.current) {
+      if ('scrollRestoration' in history) history.scrollRestoration = 'manual'
+      window.scrollTo(0, 0)
+      inited.current = true
+    }
 
     let frames: (ImageBitmap | undefined)[] = []
     let loadedCount = 0 // frames are loaded in order, so this is contiguous from 0
@@ -68,6 +78,9 @@ export function useMeltScrub(manifestUrl: string) {
       const b = frames[Math.min(i + 1, loadedCount - 1)] ?? a
       const mix = clamp01(pos - i)
 
+      // Cover-fit. The frame sets are already shaped per device (landscape for
+      // desktop, portrait reels-style for mobile), so cover fills cleanly on
+      // both without cropping the ice block.
       const scale = Math.max(canvas.width / a.width, canvas.height / a.height)
       const dw = a.width * scale
       const dh = a.height * scale
@@ -116,14 +129,22 @@ export function useMeltScrub(manifestUrl: string) {
     ro.observe(canvas)
     raf = requestAnimationFrame(tick)
 
-    const frameUrl = (i: number) => `/frames/f${String(i).padStart(3, '0')}.jpg`
-
     // Load frames in order, several at a time. fetch + createImageBitmap both
     // run off the main thread, so this never blocks scrolling or painting.
     const run = async () => {
       const manifest: Manifest = await fetch(manifestUrl).then((r) => r.json())
       if (cancelled) return
-      total = manifest.count
+
+      const vf = manifest[variant] ?? Object.values(manifest)[0]
+      // Pick a frame set for this device: phones/tablets get the lighter 720px
+      // set (~a third of the memory); larger screens get the sharp set. Decided
+      // once at load — a mid-session resize past the breakpoint won't reload.
+      const useMobile = window.matchMedia('(max-width: 820px)').matches
+      const tier = (useMobile ? vf.mobile : vf.desktop) ?? vf.desktop
+      canvas.dataset.tier = tier.dir
+      const frameUrl = (i: number) => `/frames/${tier.dir}/f${String(i).padStart(3, '0')}.jpg`
+
+      total = tier.count
       frames = new Array(total)
 
       let next = 0
@@ -165,7 +186,7 @@ export function useMeltScrub(manifestUrl: string) {
       frames.forEach((f) => f?.close())
       frames = []
     }
-  }, [manifestUrl])
+  }, [manifestUrl, variant])
 
   return { canvasRef, progress, ready }
 }

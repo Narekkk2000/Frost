@@ -1,1 +1,1 @@
-{"count": 234, "pattern": "/frames/f%.jpg", "pad": 3}
+{"deepfreeze":{"desktop":{"count":399,"dir":"deepfreeze/d"},"mobile":{"count":299,"dir":"deepfreeze/m"}},"meltdown":{"desktop":{"count":398,"dir":"meltdown/d"},"mobile":{"count":300,"dir":"meltdown/m"}}}
