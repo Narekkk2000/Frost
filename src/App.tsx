@@ -12,7 +12,7 @@ const ramp = (p: number, from: number, to: number) => clamp01((p - from) / (to -
 /** where the logo's drip line sits inside the frame, per frame set */
 const ANCHOR = {
   desktop: { aspect: 1100 / 614, y: 0.83 },
-  mobile: { aspect: 480 / 1040, y: 0.66 },
+  mobile: { aspect: 540 / 960, y: 0.66 },
 }
 
 /**
