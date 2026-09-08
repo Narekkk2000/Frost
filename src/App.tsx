@@ -1,46 +1,70 @@
-import type { CSSProperties } from 'react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useMeltScrub } from './useMeltScrub'
-
-/** the two melt variants, each a tab (ids match public/frames/manifest.json) */
-const VARIANTS = [
-  { id: 'deepfreeze', label: 'Deep Freeze' },
-  { id: 'meltdown', label: 'Meltdown' },
-]
+import { useMeltAudio } from './useMeltAudio'
+import { Info } from './Info'
+import { LiquidButton } from './LiquidButton'
+import { SoundToggle } from './SoundToggle'
+import { Preloader } from './Preloader'
 
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v))
-
-/** split a line into staggered words so each can "defrost" in on its own delay */
-const words = (text: string) =>
-  text.split(' ').flatMap((w, i, arr) => {
-    const span = (
-      <span className="word" style={{ '--wi': i } as CSSProperties} key={i}>
-        {w}
-      </span>
-    )
-    return i < arr.length - 1 ? [span, ' '] : [span]
-  })
-
-/** 0 → 1 as progress moves from `from` to `to` */
 const ramp = (p: number, from: number, to: number) => clamp01((p - from) / (to - from))
 
-/** trapezoid visibility: fades in over [a, b], holds, fades out over [c, d] */
-const between = (p: number, a: number, b: number, c: number, d: number) =>
-  ramp(p, a, b) * (1 - ramp(p, c, d))
+/** where the logo's drip line sits inside the frame, per frame set */
+const ANCHOR = {
+  desktop: { aspect: 1100 / 614, y: 0.83 },
+  mobile: { aspect: 480 / 1040, y: 0.66 },
+}
 
-/** slow upward drift across a phrase's scroll window */
-const drift = (p: number, a: number, d: number) => (0.5 - ramp(p, a, d)) * 48
+/**
+ * Screen-space Y of the point just under the logo. The canvas is cover-fit, so
+ * the logo drifts with the viewport — this repeats the same fit maths to keep
+ * the CTA pinned under it on any screen.
+ */
+function useLogoAnchor() {
+  const [y, setY] = useState(0)
+  useEffect(() => {
+    const measure = () => {
+      const vw = window.innerWidth
+      const vh = window.innerHeight
+      const { aspect, y: fy } = vw <= 820 ? ANCHOR.mobile : ANCHOR.desktop
+      const drawnHeight = Math.max(vh, vw / aspect)
+      const top = (vh - drawnHeight) / 2
+      setY(Math.min(top + fy * drawnHeight, vh - 132))
+    }
+    measure()
+    window.addEventListener('resize', measure)
+    return () => window.removeEventListener('resize', measure)
+  }, [])
+  return y
+}
 
-export default function App() {
-  const [variant, setVariant] = useState(VARIANTS[0].id)
-  const { canvasRef, progress, ready } = useMeltScrub('/frames/manifest.json', variant)
+function Teaser() {
+  const { canvasRef, progress, ready, loaded } = useMeltScrub('/frames/manifest.json', 'meltdown')
+  const { soundOn, toggleSound } = useMeltAudio(progress)
+  const anchorY = useLogoAnchor()
 
-  const celsius = -18 + 42 * progress
-  const temp = `${celsius < 0 ? '−' : '+'}${Math.abs(celsius).toFixed(1)}°C`
-  const tempColor = `color-mix(in oklab, var(--ice-blue) ${Math.round((1 - progress) * 100)}%, var(--ember))`
+  const done = loaded >= 1
+  // keep the preloader mounted through its fade so it doesn't pop away
+  const [dismissed, setDismissed] = useState(false)
+  useEffect(() => {
+    if (!done) return
+    const id = setTimeout(() => setDismissed(true), 900)
+    return () => clearTimeout(id)
+  }, [done])
+
+  // no scrolling until every frame is in memory — scrubbing a partial sequence
+  // is exactly what made the melt lag behind the scroll
+  useEffect(() => {
+    document.body.classList.toggle('is-loading', !done)
+    // start the melt at frame zero however the browser left the scroll position
+    if (done) window.scrollTo(0, 0)
+    return () => document.body.classList.remove('is-loading')
+  }, [done])
 
   return (
     <main className="stage">
+      {!dismissed && <Preloader progress={loaded} />}
+
       <div className="viewport">
         <canvas
           ref={canvasRef}
@@ -50,70 +74,35 @@ export default function App() {
         />
         <div className="scrim" />
 
-        <header className="hud hud-top">
-          <span className="mono temp" style={{ color: tempColor }}>
-            {temp}
-          </span>
-        </header>
+        <LiquidButton melt={progress} top={anchorY} />
 
-        <nav className="tabs" aria-label="Melt variant">
-          {VARIANTS.map((v) => (
-            <button
-              key={v.id}
-              type="button"
-              className={`tab mono${variant === v.id ? ' active' : ''}`}
-              aria-pressed={variant === v.id}
-              onClick={() => setVariant(v.id)}
-            >
-              {v.label}
-            </button>
-          ))}
-        </nav>
+        <SoundToggle on={soundOn} onToggle={toggleSound} />
 
-        <section
-          className="phrase"
-          style={{
-            opacity: between(progress, -1, 0, 0.14, 0.22),
-            transform: `translateY(${drift(progress, -0.22, 0.22)}px)`,
-          }}
-        >
-          <h1 className={`hero-title${progress <= 0.22 ? ' reveal' : ''}`}>
-            {words('The legend is defrosting.')}
-          </h1>
-        </section>
-
-        <section
-          className="phrase"
-          style={{
-            opacity: between(progress, 0.34, 0.42, 0.6, 0.68),
-            transform: `translateY(${drift(progress, 0.34, 0.68)}px)`,
-          }}
-        >
-          <p className={`line${progress >= 0.34 && progress <= 0.68 ? ' reveal' : ''}`}>
-            {words('The ultimate cannabis delivery experience is coming.')}
-          </p>
-        </section>
-
-        <section
-          className="phrase"
-          style={{
-            opacity: between(progress, 0.82, 0.92, 2, 3),
-            transform: `translateY(${drift(progress, 0.82, 1.02)}px)`,
-          }}
-        >
-          <p className={`headline${progress >= 0.82 ? ' reveal' : ''}`}>
-            {words('Stay tuned.')}
-          </p>
-        </section>
-
-        <footer className="hud hud-bottom">
-          <span className="scroll-cue" style={{ opacity: 1 - ramp(progress, 0.02, 0.09) }}>
-            Scroll to melt <span className="scroll-cue-arrow">↓</span>
-          </span>
-        </footer>
+        <div className="scroll-cue" style={{ opacity: 1 - ramp(progress, 0.02, 0.09) }}>
+          <span className="scroll-cue-drop" />
+        </div>
 
         <div className="meter" style={{ transform: `scaleX(${progress})` }} />
       </div>
     </main>
   )
+}
+
+/** '#/info' → the content page, anything else → the teaser */
+export default function App() {
+  const [hash, setHash] = useState(() => window.location.hash)
+  useEffect(() => {
+    const onHash = () => setHash(window.location.hash)
+    window.addEventListener('hashchange', onHash)
+    return () => window.removeEventListener('hashchange', onHash)
+  }, [])
+
+  const onInfo = hash.startsWith('#/info')
+
+  // the teaser is a 520vh scrub track, so always land at the top on a switch
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [onInfo])
+
+  return onInfo ? <Info /> : <Teaser />
 }

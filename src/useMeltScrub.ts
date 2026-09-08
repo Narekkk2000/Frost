@@ -24,6 +24,8 @@ export function useMeltScrub(manifestUrl: string, variant: string) {
   const inited = useRef(false)
   const [progress, setProgress] = useState(0)
   const [ready, setReady] = useState(false)
+  /** fraction of the frame set decoded and in memory, 0 → 1 */
+  const [loaded, setLoaded] = useState(0)
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -146,6 +148,7 @@ export function useMeltScrub(manifestUrl: string, variant: string) {
       total = tier.count
       frames = new Array(total)
 
+      let lastPct = -1
       let next = 0
       const worker = async () => {
         while (!cancelled && next < total) {
@@ -162,6 +165,12 @@ export function useMeltScrub(manifestUrl: string, variant: string) {
             while (frames[loadedCount]) loadedCount++
             lastDrawn = -1
             canvas.dataset.frames = String(loadedCount)
+            // re-render only when the whole-percent figure moves
+            const pct = Math.floor((loadedCount / total) * 100)
+            if (pct !== lastPct) {
+              lastPct = pct
+              setLoaded(loadedCount / total)
+            }
             if (!canvasShown) {
               canvasShown = true
               setReady(true)
@@ -173,8 +182,10 @@ export function useMeltScrub(manifestUrl: string, variant: string) {
       }
       const POOL = 8
       await Promise.all(Array.from({ length: POOL }, worker))
+      if (!cancelled) setLoaded(1)
     }
-    run().catch(() => {})
+    // never leave the visitor stuck behind a preloader if the frames 404
+    run().catch(() => setLoaded(1))
 
     return () => {
       cancelled = true
@@ -187,5 +198,5 @@ export function useMeltScrub(manifestUrl: string, variant: string) {
     }
   }, [manifestUrl, variant])
 
-  return { canvasRef, progress, ready }
+  return { canvasRef, progress, ready, loaded }
 }

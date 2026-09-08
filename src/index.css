@@ -1,9 +1,19 @@
+/* typed so the label's colour can interpolate as the scroll thaws the button */
+@property --hot {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 0;
+}
+
 :root {
-  --bg: #040709;
-  --ice: #e3eef7;
-  --ice-dim: rgba(227, 238, 247, 0.62);
-  --ice-blue: #a9cdee;
-  --ember: #f0b394;
+  /* sampled from the melt frames so the UI and the footage share one palette */
+  --sky: #6c9bb9;
+  --ice: #eaf4fb;
+  --ice-dim: rgba(234, 244, 251, 0.66);
+  --pink: #f0a8ca;
+  --pink-deep: #d97fac;
+  --blue-lo: #2f86b8;
+  --blue-hi: #79c2e6;
   --font-title: 'Titan One', system-ui, sans-serif;
   --font-body: 'Poppins', system-ui, sans-serif;
 }
@@ -15,15 +25,94 @@
 }
 
 body {
-  background: var(--bg);
+  background: var(--sky);
   color: var(--ice);
   font-family: var(--font-body);
   overflow-x: hidden;
 }
 
 ::selection {
-  background: rgba(169, 205, 238, 0.35);
+  background: rgba(240, 168, 202, 0.4);
 }
+
+/* ── preloader ──────────────────────────────────────────────────────── */
+
+body.is-loading {
+  overflow: hidden;
+}
+
+.preloader {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  /* iOS will happily scroll the page behind a fixed overlay without this */
+  touch-action: none;
+  background:
+    radial-gradient(120% 80% at 50% 34%, rgba(150, 199, 226, 0.35), transparent 70%),
+    linear-gradient(178deg, #6d9cbd 0%, #43738f 52%, #24536f 100%);
+  transition:
+    opacity 0.8s ease,
+    visibility 0.8s;
+}
+
+/* the melt underneath is already running, so dissolve rather than cut */
+.preloader--done {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.preloader-canvas {
+  width: 300px;
+  height: 360px;
+}
+
+.preloader-pct {
+  font-family: var(--font-title);
+  font-size: clamp(2rem, 6vw, 2.9rem);
+  line-height: 1;
+  color: var(--ice);
+  text-shadow: 0 4px 26px rgba(30, 60, 82, 0.5);
+}
+
+.preloader-pct span {
+  font-size: 0.5em;
+  margin-left: 0.12em;
+  color: var(--pink);
+}
+
+.preloader-word {
+  margin-top: 0.5rem;
+  font-size: 0.7rem;
+  font-weight: 300;
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  color: rgba(234, 244, 251, 0.6);
+}
+
+/* no WebGL / reduced motion: an honest bar, no pretend liquid */
+.preloader-bar {
+  width: min(260px, 60vw);
+  height: 4px;
+  margin-bottom: 2rem;
+  border-radius: 999px;
+  background: rgba(234, 244, 251, 0.22);
+  overflow: hidden;
+}
+
+.preloader-bar i {
+  display: block;
+  height: 100%;
+  transform-origin: 0 50%;
+  background: linear-gradient(90deg, var(--pink), var(--pink-deep));
+}
+
+/* ── teaser ─────────────────────────────────────────────────────────── */
 
 /* the tall track that drives the scrub */
 .stage {
@@ -43,134 +132,15 @@ body {
   inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: cover;
-  filter: saturate(0.82) contrast(1.06) brightness(0.94);
   transition: opacity 1.2s ease;
 }
 
-/* frame-scrubbed canvas sits on top of the video and takes over once ready */
-.ice-canvas {
-  transition-duration: 0.5s;
-}
-
-/* cold vignette so type stays legible over bright ice */
+/* barely-there vignette — the day variant should stay bright */
 .scrim {
   position: absolute;
   inset: 0;
-  background:
-    radial-gradient(120% 95% at 50% 42%, transparent 42%, rgba(4, 7, 9, 0.6) 100%),
-    linear-gradient(
-      180deg,
-      rgba(4, 7, 9, 0.42) 0%,
-      transparent 26%,
-      transparent 72%,
-      rgba(4, 7, 9, 0.55) 100%
-    );
-}
-
-.hud {
-  position: absolute;
-  left: 0;
-  right: 0;
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 1rem;
-  padding: 1.5rem 1.75rem;
-  z-index: 4;
-}
-
-.hud-top {
-  top: 0;
-  justify-content: flex-end;
-}
-
-/* variant switcher — centered in the top bar, between the corner labels */
-.tabs {
-  position: absolute;
-  top: 1.4rem;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  gap: 1.4rem;
-  z-index: 6;
-  pointer-events: auto;
-}
-
-.tab {
-  position: relative;
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 0.3rem 0;
-  color: var(--ice-dim);
-  transition: color 0.35s ease;
-}
-
-.tab:hover {
-  color: var(--ice);
-}
-
-.tab.active {
-  color: var(--ice);
-}
-
-.tab.active::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -0.35rem;
-  height: 1px;
-  background: linear-gradient(90deg, var(--ice-blue), var(--ember));
-}
-
-.hud-bottom {
-  bottom: 0;
-  justify-content: center;
-}
-
-.mono {
-  font-family: var(--font-body);
-  font-size: 0.68rem;
-  font-weight: 500;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--ice-dim);
-  white-space: nowrap;
-}
-
-.temp {
-  font-variant-numeric: tabular-nums;
-}
-
-/* the scroll prompt — deliberately prominent */
-.scroll-cue {
-  font-family: var(--font-body);
-  font-weight: 600;
-  font-size: 0.95rem;
-  letter-spacing: 0.32em;
-  text-transform: uppercase;
-  color: var(--ice);
-  white-space: nowrap;
-  text-shadow: 0 2px 24px rgba(4, 7, 9, 0.8);
-}
-
-.scroll-cue-arrow {
-  display: inline-block;
-  margin-left: 0.5em;
-  color: var(--ice-blue);
-  animation: bob 1.8s ease-in-out infinite;
-}
-
-@keyframes bob {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(5px);
-  }
+  pointer-events: none;
+  background: radial-gradient(125% 100% at 50% 44%, transparent 55%, rgba(38, 74, 98, 0.34) 100%);
 }
 
 .meter {
@@ -180,119 +150,328 @@ body {
   width: 100%;
   height: 2px;
   transform-origin: 0 50%;
-  background: linear-gradient(90deg, var(--ice-blue), var(--ember));
+  background: linear-gradient(90deg, var(--blue-lo), var(--pink));
   z-index: 5;
 }
 
-/* phrases live in the dark "sky" band above the ice, where the frame is calm */
-.phrase {
+/* wordless scroll prompt: a droplet that keeps falling */
+.scroll-cue {
   position: absolute;
-  inset: 0;
-  display: grid;
-  align-content: start;
-  justify-items: center;
-  text-align: center;
-  padding: 7vh 7vw 0;
-  z-index: 3;
+  bottom: 2.2rem;
+  left: 50%;
+  translate: -50% 0;
+  width: 12px;
+  height: 34px;
+  z-index: 4;
   pointer-events: none;
 }
 
-/* the hero — Titan One, chunky and playful */
-.hero-title {
-  font-family: var(--font-title);
-  font-weight: 400;
-  font-size: clamp(2.3rem, 5.6vw, 5rem);
-  line-height: 1.02;
-  letter-spacing: 0.005em;
-  color: var(--ice);
-  text-shadow: 0 3px 60px rgba(4, 7, 9, 0.9);
+.scroll-cue-drop {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 9px;
+  height: 11px;
+  margin-left: -4.5px;
+  border-radius: 50% 50% 50% 50% / 62% 62% 38% 38%;
+  background: var(--pink);
+  box-shadow: 0 2px 10px rgba(51, 88, 112, 0.45);
+  animation: fall 1.9s cubic-bezier(0.55, 0, 0.85, 0.5) infinite;
 }
 
-/* the closing beat — Poppins, bold and spaced */
-.headline {
-  font-family: var(--font-body);
-  font-weight: 600;
-  font-size: clamp(2.1rem, 5.5vw, 4.6rem);
-  line-height: 1.05;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--ice);
-  text-shadow: 0 2px 55px rgba(4, 7, 9, 0.85);
-}
-
-/* each word starts frosted (blurred, dropped, dim) and "defrosts" into focus */
-.word {
-  display: inline-block;
-  opacity: 0;
-  filter: blur(18px);
-  transform: translateY(0.7em) scale(1.06);
-}
-
-.reveal .word {
-  animation: defrost 1.05s cubic-bezier(0.2, 0.65, 0.15, 1) both;
-  animation-delay: calc(var(--wi, 0) * 0.11s);
-}
-
-@keyframes defrost {
+@keyframes fall {
   0% {
+    transform: translateY(0) scale(0.7, 1.35);
     opacity: 0;
-    filter: blur(18px);
-    transform: translateY(0.7em) scale(1.06);
   }
-  55% {
+  20%,
+  75% {
     opacity: 1;
   }
   100% {
+    transform: translateY(24px) scale(1.25, 0.7);
+    opacity: 0;
+  }
+}
+
+.sound {
+  position: absolute;
+  top: 1.4rem;
+  right: 1.4rem;
+  z-index: 6;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border: 1px solid rgba(234, 244, 251, 0.35);
+  border-radius: 50%;
+  background: rgba(63, 108, 139, 0.28);
+  backdrop-filter: blur(6px);
+  color: var(--ice-dim);
+  cursor: pointer;
+  transition:
+    color 0.3s ease,
+    border-color 0.3s ease;
+}
+
+.sound:hover,
+.sound.on {
+  color: var(--ice);
+  border-color: rgba(234, 244, 251, 0.7);
+}
+
+/* ── the melting CTA ────────────────────────────────────────────────── */
+
+.lbtn {
+  --w: clamp(172px, 21vw, 224px);
+  --h: 58px;
+  /* 0 → frozen solid, 1 → fully thawed and running; set from the scrub */
+  --hot: 0;
+
+  position: absolute;
+  left: 50%;
+  margin-left: calc(var(--w) / -2);
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  width: var(--w);
+  height: var(--h);
+  text-decoration: none;
+}
+
+/*
+ * The canvas overhangs the pill on every side so the glaze has somewhere to run
+ * to — these insets must match PAD_X / PAD_TOP / PAD_BOTTOM in LiquidButton.
+ */
+.lbtn-canvas {
+  position: absolute;
+  left: -26px;
+  top: -18px;
+  width: calc(100% + 52px);
+  height: calc(100% + 168px);
+  pointer-events: none;
+}
+
+.lbtn-label {
+  position: relative;
+  z-index: 1;
+  font-family: var(--font-title);
+  font-size: clamp(1rem, 1.5vw, 1.2rem);
+  letter-spacing: 0.05em;
+  color: color-mix(in oklab, #3f6f8d, #ffffff calc(var(--hot) * 100%));
+  text-shadow: 0 1px 2px rgba(29, 66, 90, calc(var(--hot) * 0.45));
+  transition: color 0.25s linear;
+}
+
+.lbtn:hover .lbtn-label {
+  color: #fff;
+}
+
+/* no WebGL, or reduced motion: a plain frozen pill, no pretend liquid */
+.lbtn--flat {
+  border-radius: 999px;
+  background: linear-gradient(
+    168deg,
+    color-mix(in oklab, #dff0fa, var(--blue-hi) calc(var(--hot) * 100%)),
+    color-mix(in oklab, #b6d9ec, var(--blue-lo) calc(var(--hot) * 100%))
+  );
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.55),
+    0 10px 18px rgba(40, 74, 97, 0.28);
+}
+
+.lbtn:focus-visible {
+  outline: 2px solid var(--ice);
+  outline-offset: 8px;
+  border-radius: 999px;
+}
+
+/* ── content page ───────────────────────────────────────────────────── */
+
+.info {
+  position: relative;
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: clamp(6rem, 17vh, 9rem) 1.4rem clamp(2rem, 5vh, 3.5rem);
+  /* only ever seen for the instant before the shader's first frame lands */
+  background: linear-gradient(178deg, #6d9cbd 0%, #43738f 48%, #21506e 100%);
+}
+
+/* the domain-warped ice shader, behind everything */
+.frost-field {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+}
+
+/* the poured glaze and its drips — overhangs so droplets can fall clear */
+.glaze-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: clamp(300px, 42vh, 440px);
+  z-index: 2;
+  pointer-events: none;
+}
+
+/* reduced motion / no WebGL: the band alone, holding still */
+.glaze-flat {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: clamp(52px, 8vh, 76px);
+  z-index: 2;
+  background: linear-gradient(180deg, #f7bcd7, var(--pink) 55%, var(--pink-deep));
+  box-shadow: 0 10px 30px rgba(40, 74, 97, 0.28);
+}
+
+.info-inner {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.15rem;
+  margin: auto 0;
+}
+
+/* everything arrives frosted and defrosts into place, one beat apart */
+.rise {
+  animation: defrost 1.15s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  animation-delay: calc(0.14s + var(--r) * 0.16s);
+}
+
+@keyframes defrost {
+  from {
+    opacity: 0;
+    filter: blur(14px);
+    transform: translateY(26px) scale(1.03);
+  }
+  60% {
+    opacity: 1;
+  }
+  to {
     opacity: 1;
     filter: blur(0);
     transform: translateY(0) scale(1);
   }
 }
 
-.lede {
-  font-weight: 300;
-  font-style: italic;
-  font-size: clamp(1.7rem, 3.6vw, 3rem);
-  letter-spacing: 0.04em;
-  color: var(--ice);
-  text-shadow: 0 2px 40px rgba(4, 7, 9, 0.75);
-}
-
-.sr-only {
+.info-back {
   position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
+  top: calc(clamp(52px, 8vh, 76px) + 2.2rem);
+  left: 1.3rem;
+  z-index: 4;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 1px solid rgba(234, 244, 251, 0.35);
+  background: rgba(63, 108, 139, 0.25);
+  color: var(--ice-dim);
+  font-size: 1.1rem;
+  text-decoration: none;
+  transition: color 0.3s ease;
 }
 
-.sub {
-  margin-top: 1.5rem;
+.info-back:hover {
+  color: var(--ice);
 }
 
-.line {
+.info-title {
+  max-width: 17ch;
+  font-family: var(--font-title);
+  font-weight: 400;
+  font-size: clamp(1.9rem, 5.4vw, 3.5rem);
+  line-height: 1.08;
+  color: var(--ice);
+  text-shadow: 0 4px 34px rgba(35, 66, 88, 0.5);
+}
+
+.info-sub {
   font-weight: 300;
-  font-size: clamp(1.9rem, 4.6vw, 3.9rem);
-  line-height: 1.15;
-  letter-spacing: 0.02em;
-  text-shadow: 0 2px 40px rgba(4, 7, 9, 0.75);
+  font-size: clamp(1.02rem, 2.5vw, 1.42rem);
+  letter-spacing: 0.03em;
+  color: rgba(234, 244, 251, 0.9);
 }
 
-.line em {
-  font-style: italic;
-  letter-spacing: 0.03em;
+.info-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem 1.7rem;
+  margin-top: 1rem;
+}
+
+.info-phone {
+  font-family: var(--font-title);
+  font-size: clamp(1.55rem, 4vw, 2.15rem);
+  color: var(--ice);
+  text-decoration: none;
+  text-shadow: 0 3px 22px rgba(35, 66, 88, 0.45);
+  transition: color 0.3s ease;
+}
+
+.info-phone:hover {
+  color: var(--pink);
+}
+
+.info-cta {
+  padding: 0.95rem 2.3rem;
+  border-radius: 999px;
+  background: linear-gradient(168deg, var(--pink), var(--pink-deep));
+  box-shadow: 0 12px 30px rgba(40, 74, 97, 0.4);
+  font-family: var(--font-title);
+  font-size: 1rem;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: #fff;
+  text-decoration: none;
+  transition:
+    transform 0.25s ease,
+    box-shadow 0.25s ease;
+}
+
+.info-cta:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 18px 38px rgba(40, 74, 97, 0.52);
+}
+
+.info-listing {
+  margin-top: 0.7rem;
+  max-width: 46ch;
+  font-size: 0.92rem;
+  font-weight: 300;
+  line-height: 1.6;
+  color: rgba(234, 244, 251, 0.82);
+}
+
+.info-license {
+  position: relative;
+  z-index: 3;
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(234, 244, 251, 0.55);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .scroll-cue-arrow,
-  .reveal .word {
+  .scroll-cue-drop {
     animation: none;
   }
-  .word {
-    opacity: 1;
-    filter: none;
-    transform: none;
+  .rise {
+    animation-duration: 0.01s;
   }
   .ice {
     transition: none;
@@ -300,11 +479,11 @@ body {
 }
 
 @media (max-width: 640px) {
-  .hud {
-    padding: 1.1rem 1rem;
+  .lbtn {
+    --h: 54px;
   }
-  .mono {
-    font-size: 0.58rem;
-    letter-spacing: 0.16em;
+  .info-actions {
+    flex-direction: column;
+    gap: 1rem;
   }
 }
