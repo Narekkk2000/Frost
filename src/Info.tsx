@@ -1,5 +1,4 @@
 import type { CSSProperties } from 'react'
-import { FrostField } from './FrostField'
 import { GlazeCeiling } from './GlazeCeiling'
 
 const WEEDMAPS = 'https://weedmaps.com/deliveries/frost-12'
@@ -7,7 +6,6 @@ const WEEDMAPS = 'https://weedmaps.com/deliveries/frost-12'
 export function Info() {
   return (
     <main className="info">
-      <FrostField />
       <GlazeCeiling />
 
       <a className="info-back" href="#/" aria-label="Back to the melt">
@@ -33,7 +31,7 @@ export function Info() {
         </div>
 
         <p className="info-listing rise" style={{ '--r': 3 } as CSSProperties}>
-          Frost Menu, Reviews, Deals — Weed Delivery in North Hollywood, California
+          CANNABIS PRODUCTS DELIVERY IN CALIFORNIA
         </p>
       </div>
 

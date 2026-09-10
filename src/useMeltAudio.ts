@@ -39,7 +39,7 @@ function impulse(ctx: AudioContext, seconds: number, decay: number) {
  * is tied to pitch: small bubbles are 10ms ticks and even the fattest is gone
  * inside 75ms. Nothing can sustain long enough to read as a note.
  */
-function createEngine() {
+function createEngine(onState: (running: boolean) => void) {
   const ctx = new AudioContext()
 
   const master = ctx.createGain()
@@ -149,11 +149,17 @@ function createEngine() {
     }
   }
 
+  let enabled = false
+  let suspendTimer: ReturnType<typeof setTimeout> | undefined
+  let disposed = false
+  ctx.onstatechange = () => onState(enabled && ctx.state === 'running')
+
   const STEP = 0.07
   let progress = 0
   let velocity = 0
 
   const timer = setInterval(() => {
+    if (!enabled || ctx.state !== 'running' || progress >= 1) return
     const p = progress
     const now = ctx.currentTime
     const set = (param: AudioParam, v: number) => param.linearRampToValueAtTime(v, now + 0.2)
@@ -168,7 +174,7 @@ function createEngine() {
     }
 
     // frozen solid is almost silent; the room only opens up as it goes
-    set(air.gain, 0.005 + 0.012 * ramp(p, 0.25, 1))
+    set(air.gain, 0.014 + 0.012 * ramp(p, 0.25, 1))
     set(flow.gain, 0.018 * ramp(p, 0.5, 1) + 0.05 * velocity)
 
     // ice giving way, thickest while the block is actually breaking down
@@ -199,16 +205,34 @@ function createEngine() {
       progress = p
     },
     setEnabled(on: boolean) {
-      if (on) void ctx.resume()
+      if (disposed) return
+      enabled = on
+      clearTimeout(suspendTimer)
+      // resume() runs synchronously in the gesture handler, never in a React
+      // effect after the browser's transient activation has expired.
+      if (on) {
+        void ctx.resume().then(() => {
+          if (!disposed) onState(enabled && ctx.state === 'running')
+        }).catch(() => { if (!disposed) onState(false) })
+      }
       const t = ctx.currentTime
       master.gain.cancelScheduledValues(t)
       master.gain.setValueAtTime(master.gain.value, t)
-      master.gain.linearRampToValueAtTime(on ? 0.8 : 0, t + (on ? 1.2 : 0.3))
-      if (!on) setTimeout(() => void ctx.suspend(), 400)
+      master.gain.linearRampToValueAtTime(on ? 0.85 : 0, t + 0.15)
+      if (!on) {
+        onState(false)
+        suspendTimer = setTimeout(() => {
+          if (!enabled && !disposed) void ctx.suspend().catch(() => {})
+        }, 200)
+      }
     },
     dispose() {
+      disposed = true
+      enabled = false
+      clearTimeout(suspendTimer)
       clearInterval(timer)
-      void ctx.close()
+      ctx.onstatechange = null
+      void ctx.close().catch(() => {})
     },
   }
 }
@@ -217,52 +241,61 @@ type Engine = ReturnType<typeof createEngine>
 
 export function useMeltAudio(progress: number) {
   const engineRef = useRef<Engine | null>(null)
+  const progressRef = useRef(progress)
+  const requestedRef = useRef(false)
+  const chosenRef = useRef(false)
   const [on, setOn] = useState(false)
+  progressRef.current = progress
 
-  // an AudioContext can only start from a real gesture — arm on the first one
+  const enable = useCallback((wanted: boolean) => {
+    requestedRef.current = wanted && progressRef.current < 1
+    if (!engineRef.current && requestedRef.current) {
+      try { engineRef.current = createEngine(setOn) }
+      catch { requestedRef.current = false; setOn(false); return }
+    }
+    engineRef.current?.setProgress(progressRef.current)
+    engineRef.current?.setEnabled(requestedRef.current && !document.hidden)
+  }, [])
+
   useEffect(() => {
-    const start = () => {
-      if (engineRef.current) return
-      try {
-        engineRef.current = createEngine()
-        setOn(true)
-      } catch {
-        /* no Web Audio: the page just stays silent */
+    const gesture = (event: Event) => {
+      // The sound button owns its click. Auto-enabling on its pointerdown
+      // used to turn it on immediately before its click toggled it off again.
+      if ((event.target as Element | null)?.closest?.('[data-sound-toggle]')) return
+      if (event instanceof KeyboardEvent && (event.repeat || event.metaKey || event.ctrlKey || event.altKey)) return
+      if (progressRef.current >= 1) return
+      if (!chosenRef.current || requestedRef.current) {
+        chosenRef.current = true
+        enable(true)
       }
     }
-    const events = ['pointerdown', 'keydown', 'touchend', 'wheel'] as const
-    events.forEach((e) => window.addEventListener(e, start, { once: true, passive: true }))
-    return () => events.forEach((e) => window.removeEventListener(e, start))
-  }, [])
+    // Wheel is deliberately absent: it is not an audio-unlocking gesture.
+    const events = ['pointerdown', 'keydown', 'touchend'] as const
+    events.forEach((name) => window.addEventListener(name, gesture, { passive: true }))
+    const visibility = () => engineRef.current?.setEnabled(requestedRef.current && !document.hidden)
+    document.addEventListener('visibilitychange', visibility)
+    return () => {
+      events.forEach((name) => window.removeEventListener(name, gesture))
+      document.removeEventListener('visibilitychange', visibility)
+      engineRef.current?.dispose()
+      engineRef.current = null
+    }
+  }, [enable])
 
   useEffect(() => {
-    const engine = engineRef
-    return () => engine.current?.dispose()
-  }, [])
-
-  useEffect(() => {
-    engineRef.current?.setEnabled(on)
-  }, [on])
-
-  // don't keep dripping into a background tab
-  useEffect(() => {
-    const onVisibility = () => engineRef.current?.setEnabled(on && !document.hidden)
-    document.addEventListener('visibilitychange', onVisibility)
-    return () => document.removeEventListener('visibilitychange', onVisibility)
-  }, [on])
-
-  engineRef.current?.setProgress(progress)
+    engineRef.current?.setProgress(progress)
+    if (progress >= 1) {
+      chosenRef.current = true
+      enable(false)
+    }
+  }, [progress, enable])
 
   const toggle = useCallback(() => {
-    if (!engineRef.current) {
-      try {
-        engineRef.current = createEngine()
-      } catch {
-        return
-      }
-    }
-    setOn((v) => !v)
-  }, [])
+    chosenRef.current = true
+    // If the OS/browser suspended a requested sound, the visible off button
+    // should retry playback on the first click.
+    enable(!on)
+  }, [enable, on])
 
   return { soundOn: on, toggleSound: toggle }
 }

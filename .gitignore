@@ -3,3 +3,6 @@ dist
 *.local
 .DS_Store
 npm-debug.log*
+
+.playwright-cli/
+output/playwright/

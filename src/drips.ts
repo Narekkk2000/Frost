@@ -23,6 +23,8 @@ export type DripConfig = {
   r2: number
   /** droplets are retired once they pass this y */
   bottom: number
+  /** Optional curved edge shared with the shader, for seamless detachment. */
+  originAt?: (x: number) => number
   dropCap?: number
   seed?: number
 }
@@ -36,7 +38,7 @@ export type DripField = {
   dropCap: number
   liveDrops: number
   step(dt: number, flow: number): void
-  setGeometry(g: Partial<Pick<DripConfig, 'width' | 'x0' | 'originY' | 'bottom'>>): void
+  setGeometry(g: Partial<Pick<DripConfig, 'width' | 'x0' | 'originY' | 'bottom' | 'originAt'>>): void
 }
 
 /** deterministic layout — the drips should be in the same places every reload */
@@ -53,7 +55,7 @@ export function createDripField(cfg: DripConfig): DripField {
   const dropCap = cfg.dropCap ?? 8
   const rand = rng(cfg.seed ?? 0x5eed)
 
-  let { width, x0, originY, bottom } = cfg
+  let { width, x0, originY, bottom, originAt } = cfg
 
   // per-drip character: some run early and far, some barely weep
   const u = new Float32Array(n) // 0..1 position across the span
@@ -89,6 +91,7 @@ export function createDripField(cfg: DripConfig): DripField {
       if (g.x0 !== undefined) x0 = g.x0
       if (g.originY !== undefined) originY = g.originY
       if (g.bottom !== undefined) bottom = g.bottom
+      if (g.originAt !== undefined) originAt = g.originAt
     },
     step(dt, flow) {
       dt = Math.min(dt, 1 / 20) // a backgrounded tab shouldn't teleport the fluid
@@ -117,7 +120,7 @@ export function createDripField(cfg: DripConfig): DripField {
             if (alive[d]) continue
             alive[d] = 1
             drops[d * 3] = x
-            drops[d * 3 + 1] = originY + len[i]
+            drops[d * 3 + 1] = (originAt?.(x) ?? originY) + len[i]
             drops[d * 3 + 2] = bead
             vel[d] = 18
             break

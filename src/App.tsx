@@ -4,7 +4,6 @@ import { useMeltAudio } from './useMeltAudio'
 import { Info } from './Info'
 import { LiquidButton } from './LiquidButton'
 import { SoundToggle } from './SoundToggle'
-import { Preloader } from './Preloader'
 
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v))
 const ramp = (p: number, from: number, to: number) => clamp01((p - from) / (to - from))
@@ -39,33 +38,17 @@ function useLogoAnchor() {
 }
 
 function Teaser() {
-  const { canvasRef, progress, ready, loaded } = useMeltScrub('/frames/manifest.json', 'meltdown')
+  const { canvasRef, progress, ready } = useMeltScrub('/frames/manifest.json', 'meltdown')
   const { soundOn, toggleSound } = useMeltAudio(progress)
   const anchorY = useLogoAnchor()
 
-  const done = loaded >= 1
-  // keep the preloader mounted through its fade so it doesn't pop away
-  const [dismissed, setDismissed] = useState(false)
-  useEffect(() => {
-    if (!done) return
-    const id = setTimeout(() => setDismissed(true), 900)
-    return () => clearTimeout(id)
-  }, [done])
-
-  // no scrolling until every frame is in memory — scrubbing a partial sequence
-  // is exactly what made the melt lag behind the scroll
-  useEffect(() => {
-    document.body.classList.toggle('is-loading', !done)
-    // start the melt at frame zero however the browser left the scroll position
-    if (done) window.scrollTo(0, 0)
-    return () => document.body.classList.remove('is-loading')
-  }, [done])
-
   return (
     <main className="stage">
-      {!dismissed && <Preloader progress={loaded} />}
-
       <div className="viewport">
+        <picture className="ice-poster" aria-hidden="true">
+          <source media="(max-width: 820px)" srcSet="/frames/meltdown/m/f000.jpg" />
+          <img src="/frames/meltdown/d/f000.jpg" alt="" fetchPriority="high" />
+        </picture>
         <canvas
           ref={canvasRef}
           className="ice"

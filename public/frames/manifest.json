@@ -1,1 +1,20 @@
-{"meltdown":{"desktop":{"count":398,"dir":"meltdown/d"},"mobile":{"count":300,"dir":"meltdown/m"}}}
+{
+  "meltdown": {
+    "desktop": {
+      "count": 398,
+      "dir": "meltdown/d",
+      "keyframes": {
+        "step": 12,
+        "directory": "keyframes"
+      }
+    },
+    "mobile": {
+      "count": 300,
+      "dir": "meltdown/m",
+      "keyframes": {
+        "step": 12,
+        "directory": "keyframes"
+      }
+    }
+  }
+}

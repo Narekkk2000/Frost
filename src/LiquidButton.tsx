@@ -41,11 +41,13 @@ void main() {
   vec2 b = uPill.zw;
   float top = c.y - b.y;
 
-  float dPill = sdRoundBox(p, c, b, b.y);
+  vec2 bodyPoint = p + vec2(0.0, sin((p.x - c.x) * 0.038) * uHot * 1.4);
+  float dPill = sdRoundBox(bodyPoint, c, b, b.y);
 
-  // the glaze line creeps down the pill as it thaws
-  float glazeY = top + 2.0 * b.y * (0.34 + 0.30 * uHot);
-  float dGlaze = max(dPill, p.y - glazeY);
+  // One continuous body: the drips grow from the pill's underside. There is
+  // no second clipped layer, so no horizontal paint seam across the button.
+  float glazeY = c.y + b.y - 5.0;
+  float dGlaze = dPill;
 
   for (int i = 0; i < ${MAX_DRIPS}; i++) {
     vec4 dr = uDrips[i];
@@ -63,24 +65,15 @@ void main() {
   float dLiquid = smin(dGlaze, dFree, 2.5);
   float d = min(dPill, dLiquid);
 
-  float gy = clamp((p.y - top) / (2.0 * b.y), 0.0, 1.0);
-  vec3 pillWarm = mix(vec3(0.475, 0.761, 0.902), vec3(0.184, 0.525, 0.722), gy);
-  vec3 pillCold = mix(vec3(0.886, 0.949, 0.984), vec3(0.706, 0.847, 0.925), gy);
-  vec3 pill = mix(pillCold, pillWarm, uHot);
-
-  float qy = clamp((p.y - top) / (3.4 * b.y), 0.0, 1.0);
-  vec3 glazeWarm = mix(vec3(0.949, 0.686, 0.812), vec3(0.851, 0.498, 0.675), qy);
-  vec3 glaze = mix(vec3(0.949, 0.976, 0.992), glazeWarm, uHot);
-
-  float pink = smoothstep(1.2, -1.2, dLiquid);
-  vec3 base = mix(pill, glaze, pink);
-
-  // drips are thin, so they need a tighter dome than the pill
-  float radius = mix(b.y * 0.95, 7.5, pink);
-  vec3 col = gel(d, base, radius, normalize(vec3(-0.40, -0.70, 0.58)));
+  vec3 brandPink = vec3(241.0, 112.0, 171.0) / 255.0;
+  vec3 base = mix(vec3(0.84, 0.94, 0.98), brandPink, uHot);
+  // The whole pill has volume; the necks and beads have a smaller curvature.
+  float below = smoothstep(c.y + b.y - 12.0, c.y + b.y + 12.0, p.y);
+  float radius = mix(b.y * 1.1, 8.5, below);
+  vec3 col = gel(d, base, radius, normalize(vec3(-0.40, 0.70, 0.68)));
 
   // frost crust while it is still cold
-  float frost = (1.0 - uHot) * smoothstep(1.0, -6.0, dPill);
+  float frost = (1.0 - uHot) * (1.0 - smoothstep(-6.0, 1.0, dPill));
   col = mix(col, mix(col, vec3(1.0), 0.55), frost);
 
   // hovering warms it: more light through the body, more running glaze
@@ -91,7 +84,7 @@ void main() {
 
   // contact shadow, so the pill sits on the footage instead of floating over it
   float ds = sdRoundBox(p - vec2(0.0, 10.0), c, b, b.y);
-  float sh = smoothstep(18.0, -6.0, ds) * 0.32;
+  float sh = (1.0 - smoothstep(-6.0, 18.0, ds)) * 0.32;
   vec3 shadow = vec3(0.145, 0.278, 0.369);
 
   fragColor = vec4(col * a + shadow * sh * (1.0 - a), a + sh * (1.0 - a));
@@ -128,7 +121,7 @@ export function LiquidButton({ melt, top }: { melt: number; top: number }) {
       width: 100,
       x0: PAD_X,
       originY: PAD_TOP,
-      maxLen: 46,
+      maxLen: 58,
       r1: 7.5,
       r2: 3.4,
       bottom: 200,
@@ -153,7 +146,7 @@ export function LiquidButton({ melt, top }: { melt: number; top: number }) {
         const cy = PAD_TOP + ph / 2
         const hw = Math.max(ph / 2, w / 2 - PAD_X)
         const hh = ph / 2
-        const glazeY = PAD_TOP + ph * (0.34 + 0.3 * hot)
+        const glazeY = PAD_TOP + ph - 5
 
         // drips only hang off the flat part of the glaze, not the rounded ends
         field.setGeometry({
@@ -197,7 +190,7 @@ export function LiquidButton({ melt, top }: { melt: number; top: number }) {
       onBlur={() => (hoverRef.current = 0)}
     >
       {!flat && <canvas className="lbtn-canvas" ref={canvasRef} aria-hidden="true" />}
-      <span className="lbtn-label">Enter</span>
+      <span className="lbtn-label">Keep In Touch</span>
     </a>
   )
 }

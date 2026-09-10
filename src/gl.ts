@@ -154,6 +154,7 @@ float sdCone(vec2 p, vec2 a, vec2 b, float r1, float r2) {
   float l2 = dot(ba, ba);
   if (l2 < 1e-4) return length(p - a) - r1;
   float rr = r1 - r2;
+  if (l2 <= rr * rr) return length(p - a) - max(r1, r2);
   float a2 = l2 - rr * rr;
   float il2 = 1.0 / l2;
   vec2 pa = p - a;
@@ -178,7 +179,9 @@ float sdCone(vec2 p, vec2 a, vec2 b, float r1, float r2) {
 vec3 gel(float d, vec3 base, float radius, vec3 lightDir) {
   float t = clamp(-d / radius, 0.0, 1.0);
   float dome = sqrt(max(t * (2.0 - t), 1e-5));
-  float slope = -(1.0 - t) / (dome * radius);
+  // Height and width use the same units: the previous extra / radius
+  // flattened every normal and made the glaze look like a solid fill.
+  float slope = -0.92 * (1.0 - t) / dome;
   vec2 g = vec2(dFdx(d), dFdy(d));
   g = length(g) > 1e-6 ? normalize(g) : vec2(0.0);
   vec3 n = normalize(vec3(-slope * g, 1.0));
@@ -188,9 +191,12 @@ vec3 gel(float d, vec3 base, float radius, vec3 lightDir) {
   float spec = pow(clamp(dot(n, half3), 0.0, 1.0), 46.0);
   float fres = pow(1.0 - clamp(n.z, 0.0, 1.0), 2.2);
 
-  vec3 col = base * (0.70 + 0.46 * diff);
-  col += vec3(1.0, 0.99, 0.97) * spec * 0.85;
-  col += vec3(0.80, 0.92, 1.0) * fres * 0.20;
+  vec3 col = base * (0.62 + 0.38 * diff);
+  // Broad softbox reflection beneath a small, sharper wet highlight.
+  float sheen = pow(clamp(dot(n, half3), 0.0, 1.0), 9.0);
+  col += base * sheen * 0.10;
+  col += vec3(1.0, 0.99, 0.97) * spec * 0.52;
+  col += vec3(0.80, 0.92, 1.0) * fres * 0.12;
   return col;
 }
 `

@@ -27,36 +27,40 @@ float dropField(vec2 p) {
   return d;
 }
 
+float edge(float x) {
+  return uBand + 10.0 * sin(x * 0.012 + 0.4 * sin(uTime * 0.24))
+    + 6.0 * sin(x * 0.027 + 1.7 + uTime * 0.18)
+    + 3.0 * sin(x * 0.051 + 0.8);
+}
+
 void main() {
   vec2 p = vec2(gl_FragCoord.x / uDpr, uRes.y - gl_FragCoord.y / uDpr);
 
-  // the poured band: a half plane the drips are melted into
-  float d = p.y - uBand;
+  // A slowly folding meniscus: no straight ledge between the drips.
+  float d = p.y - edge(p.x);
 
   for (int i = 0; i < ${MAX_DRIPS}; i++) {
     vec4 dr = uDrips[i];
     if (dr.y <= 0.5) continue;
     float sway = sin(uTime * 0.4 + dr.x * 0.07) * dr.y * 0.035;
-    vec2 a = vec2(dr.x, uBand - 12.0);
-    vec2 e = vec2(dr.x + sway, uBand + dr.y);
+    vec2 a = vec2(dr.x, edge(dr.x) - 14.0);
+    vec2 e = vec2(dr.x + sway, edge(dr.x) + dr.y);
     d = smin(d, sdCone(p, a, e, dr.z, dr.z * 0.40), 11.0);
     d = smin(d, length(p - e) - dr.w, 4.0);
   }
 
   d = smin(d, dropField(p), 3.0);
 
-  float gy = clamp(p.y / (uBand * 2.6), 0.0, 1.0);
-  vec3 base = mix(vec3(0.973, 0.784, 0.878), vec3(0.804, 0.451, 0.627), gy);
-
-  vec3 col = gel(d, base, mix(uBand * 0.8, 11.0, smoothstep(uBand * 0.45, uBand, p.y)),
-                 normalize(vec3(-0.34, -0.72, 0.60)));
+  vec3 base = vec3(241.0, 112.0, 171.0) / 255.0;
+  vec3 col = gel(d, base, 18.0, normalize(vec3(-0.34, 0.72, 0.66)));
 
   float aa = max(fwidth(d), 0.55);
   float a = 1.0 - smoothstep(-aa, aa, d);
   // droplets dissolve into the page rather than clipping at the canvas edge
-  a *= smoothstep(uRes.y, uRes.y - 90.0, p.y);
+  float fade = 1.0 - smoothstep(uRes.y - 90.0, uRes.y, p.y);
+  a *= fade;
 
-  float sh = smoothstep(26.0, -8.0, d - 14.0) * 0.26;
+  float sh = (1.0 - smoothstep(-8.0, 26.0, d - 14.0)) * 0.26 * fade;
   vec3 shadow = vec3(0.129, 0.267, 0.361);
 
   fragColor = vec4(col * a + shadow * sh * (1.0 - a), a + sh * (1.0 - a));
@@ -100,7 +104,11 @@ export function GlazeCeiling() {
       const band = Math.min(76, Math.max(52, h * 0.2))
       // the glaze eases into motion as the page reveals, then keeps running
       const flow = Math.min(1, t / 1.6) * (0.82 + 0.18 * Math.sin(t * 0.31))
-      field.setGeometry({ x0: -10, width: w + 20, originY: band, bottom: h })
+      field.setGeometry({
+        x0: -10, width: w + 20, originY: band, bottom: h,
+        originAt: (x) => band + 10 * Math.sin(x * 0.012 + 0.4 * Math.sin(t * 0.24))
+          + 6 * Math.sin(x * 0.027 + 1.7 + t * 0.18) + 3 * Math.sin(x * 0.051 + 0.8),
+      })
       field.step(dt, flow)
       u.f('uBand', band)
       u.f('uTime', t)

@@ -2,6 +2,7 @@ export function SoundToggle({ on, onToggle }: { on: boolean; onToggle: () => voi
   return (
     <button
       type="button"
+      data-sound-toggle
       className={`sound${on ? ' on' : ''}`}
       onClick={onToggle}
       aria-pressed={on}
