@@ -1,10 +1,3 @@
-/* typed so the label's colour can interpolate as the scroll thaws the button */
-@property --hot {
-  syntax: '<number>';
-  inherits: true;
-  initial-value: 0;
-}
-
 :root {
   /* sampled from the melt frames so the UI and the footage share one palette */
   --sky: #6c9bb9;
@@ -13,7 +6,7 @@
   --pink: #F170AB;
   --blue: #4CC7E6;
   --blue-lo: #2f86b8;
-  --blue-hi: #79c2e6;
+  --ink: #282560;
   --font-title: 'Titan One', system-ui, sans-serif;
   --font-body: 'Poppins', system-ui, sans-serif;
 }
@@ -66,14 +59,6 @@ body {
   object-fit: cover;
 }
 
-/* barely-there vignette — the day variant should stay bright */
-.scrim {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: radial-gradient(125% 100% at 50% 44%, transparent 55%, rgba(38, 74, 98, 0.34) 100%);
-}
-
 .meter {
   position: absolute;
   bottom: 0;
@@ -85,44 +70,51 @@ body {
   z-index: 5;
 }
 
-/* wordless scroll prompt: a droplet that keeps falling */
+/* A readable instruction beneath the logo, with a small melting drop. */
 .scroll-cue {
   position: absolute;
-  bottom: 2.2rem;
   left: 50%;
   translate: -50% 0;
-  width: 12px;
-  height: 34px;
   z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.7rem;
+  padding-top: 0.4rem;
+  color: var(--ink);
+  font-size: clamp(0.82rem, 1.1vw, 1rem);
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  white-space: nowrap;
   pointer-events: none;
 }
 
-.scroll-cue-drop {
-  position: absolute;
-  left: 50%;
-  top: 0;
-  width: 9px;
-  height: 11px;
-  margin-left: -4.5px;
-  border-radius: 50% 50% 50% 50% / 62% 62% 38% 38%;
-  background: var(--pink);
-  box-shadow: 0 2px 10px rgba(51, 88, 112, 0.45);
-  animation: fall 1.9s cubic-bezier(0.55, 0, 0.85, 0.5) infinite;
+.scroll-cue-icon {
+  animation: melt-cue 1.8s ease-in-out infinite;
 }
 
-@keyframes fall {
-  0% {
-    transform: translateY(0) scale(0.7, 1.35);
-    opacity: 0;
-  }
-  20%,
-  75% {
-    opacity: 1;
-  }
-  100% {
-    transform: translateY(24px) scale(1.25, 0.7);
-    opacity: 0;
-  }
+@keyframes melt-cue {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(5px); }
+}
+
+.stage--exiting .viewport {
+  opacity: 0;
+  transition: opacity 0.9s ease;
+}
+
+.info-page--entering {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  overflow-y: auto;
+  animation: page-reveal 0.9s cubic-bezier(0.2, 0.65, 0.2, 1) both;
+}
+
+@keyframes page-reveal {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .sound {
@@ -151,68 +143,6 @@ body {
   border-color: rgba(234, 244, 251, 0.7);
 }
 
-/* ── the melting CTA ────────────────────────────────────────────────── */
-
-.lbtn {
-  --w: clamp(220px, 24vw, 270px);
-  --h: 58px;
-  /* 0 → frozen solid, 1 → fully thawed and running; set from the scrub */
-  --hot: 0;
-
-  position: absolute;
-  left: 50%;
-  margin-left: calc(var(--w) / -2);
-  z-index: 5;
-  display: grid;
-  place-items: center;
-  width: var(--w);
-  height: var(--h);
-  text-decoration: none;
-}
-
-/*
- * The canvas overhangs the pill on every side so the glaze has somewhere to run
- * to — these insets must match PAD_X / PAD_TOP / PAD_BOTTOM in LiquidButton.
- */
-.lbtn-canvas {
-  position: absolute;
-  left: -26px;
-  top: -18px;
-  width: calc(100% + 52px);
-  height: calc(100% + 168px);
-  pointer-events: none;
-}
-
-.lbtn-label {
-  position: relative;
-  z-index: 1;
-  font-family: var(--font-title);
-  font-size: clamp(1rem, 1.5vw, 1.2rem);
-  letter-spacing: 0.05em;
-  color: color-mix(in oklab, #3f6f8d, #ffffff calc(var(--hot) * 100%));
-  text-shadow: 0 1px 2px rgba(29, 66, 90, calc(var(--hot) * 0.45));
-  transition: color 0.25s linear;
-}
-
-.lbtn:hover .lbtn-label {
-  color: #fff;
-}
-
-/* no WebGL, or reduced motion: a plain frozen pill, no pretend liquid */
-.lbtn--flat {
-  border-radius: 999px;
-  background: color-mix(in oklab, #dff0fa, var(--pink) calc(var(--hot) * 100%));
-  box-shadow:
-    inset 0 2px 0 rgba(255, 255, 255, 0.55),
-    0 10px 18px rgba(40, 74, 97, 0.28);
-}
-
-.lbtn:focus-visible {
-  outline: 2px solid var(--ice);
-  outline-offset: 8px;
-  border-radius: 999px;
-}
-
 /* ── content page ───────────────────────────────────────────────────── */
 
 .info {
@@ -224,8 +154,10 @@ body {
   flex-direction: column;
   align-items: center;
   text-align: center;
-  padding: clamp(6rem, 17vh, 9rem) 1.4rem clamp(2rem, 5vh, 3.5rem);
+  padding: clamp(12rem, 24vh, 15rem) 1.4rem clamp(2rem, 5vh, 3.5rem);
   background: var(--blue);
+  color: var(--ink);
+  gap: 1.5rem;
 }
 
 /* the poured glaze and its drips — overhangs so droplets can fall clear */
@@ -234,7 +166,7 @@ body {
   top: 0;
   left: 0;
   width: 100%;
-  height: clamp(300px, 42vh, 440px);
+  height: clamp(220px, 28vh, 300px);
   z-index: 2;
   pointer-events: none;
 }
@@ -249,7 +181,6 @@ body {
   z-index: 2;
   background: var(--pink);
   border-radius: 0 0 48% 38% / 0 0 28% 22%;
-  box-shadow: 0 10px 30px rgba(40, 74, 97, 0.28);
 }
 
 .info-inner {
@@ -294,16 +225,16 @@ body {
   width: 38px;
   height: 38px;
   border-radius: 50%;
-  border: 1px solid rgba(234, 244, 251, 0.35);
-  background: rgba(63, 108, 139, 0.25);
-  color: var(--ice-dim);
+  border: 1px solid rgba(40, 37, 96, 0.35);
+  background: transparent;
+  color: var(--ink);
   font-size: 1.1rem;
   text-decoration: none;
   transition: color 0.3s ease;
 }
 
 .info-back:hover {
-  color: var(--ice);
+  color: var(--ink);
 }
 
 .info-title {
@@ -312,15 +243,14 @@ body {
   font-weight: 400;
   font-size: clamp(1.9rem, 5.4vw, 3.5rem);
   line-height: 1.08;
-  color: var(--ice);
-  text-shadow: 0 4px 34px rgba(35, 66, 88, 0.5);
+  color: var(--ink);
 }
 
 .info-sub {
   font-weight: 300;
   font-size: clamp(1.02rem, 2.5vw, 1.42rem);
   letter-spacing: 0.03em;
-  color: rgba(234, 244, 251, 0.9);
+  color: var(--ink);
 }
 
 .info-actions {
@@ -335,35 +265,30 @@ body {
 .info-phone {
   font-family: var(--font-title);
   font-size: clamp(1.55rem, 4vw, 2.15rem);
-  color: var(--ice);
+  color: var(--ink);
   text-decoration: none;
-  text-shadow: 0 3px 22px rgba(35, 66, 88, 0.45);
   transition: color 0.3s ease;
 }
 
 .info-phone:hover {
-  color: var(--pink);
+  color: var(--ink);
 }
 
 .info-cta {
   padding: 0.95rem 2.3rem;
   border-radius: 999px;
   background: var(--pink);
-  box-shadow: 0 12px 30px rgba(40, 74, 97, 0.4);
   font-family: var(--font-title);
   font-size: 1rem;
   letter-spacing: 0.09em;
   text-transform: uppercase;
-  color: #fff;
+  color: var(--ink);
   text-decoration: none;
-  transition:
-    transform 0.25s ease,
-    box-shadow 0.25s ease;
+  transition: transform 0.25s ease;
 }
 
 .info-cta:hover {
   transform: translateY(-2px);
-  box-shadow: 0 18px 38px rgba(40, 74, 97, 0.52);
 }
 
 .info-listing {
@@ -373,7 +298,24 @@ body {
   letter-spacing: 0.12em;
   font-weight: 300;
   line-height: 1.6;
-  color: #194e63;
+  color: var(--ink);
+}
+
+.info-logo {
+  display: block;
+  width: clamp(170px, 18vw, 230px);
+  height: auto;
+  margin-top: 0.9rem;
+}
+
+.info-title:focus {
+  outline: none;
+}
+
+.info a:focus-visible,
+.sound:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 5px;
 }
 
 .info-license {
@@ -382,25 +324,25 @@ body {
   font-size: 0.72rem;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: #194e63;
+  color: var(--ink);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .scroll-cue-drop {
+  .scroll-cue-icon {
     animation: none;
   }
   .rise {
     animation-duration: 0.01s;
   }
-  .ice {
+  .ice, .stage--exiting .viewport {
     transition: none;
+  }
+  .info-page--entering {
+    animation: none;
   }
 }
 
 @media (max-width: 640px) {
-  .lbtn {
-    --h: 54px;
-  }
   .info-actions {
     flex-direction: column;
     gap: 1rem;

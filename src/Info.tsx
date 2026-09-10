@@ -1,9 +1,13 @@
-import type { CSSProperties } from 'react'
+import { useEffect, useRef, type CSSProperties } from 'react'
 import { GlazeCeiling } from './GlazeCeiling'
 
 const WEEDMAPS = 'https://weedmaps.com/deliveries/frost-12'
 
-export function Info() {
+export function Info({ active = true }: { active?: boolean }) {
+  const titleRef = useRef<HTMLHeadingElement>(null)
+  useEffect(() => {
+    if (active) titleRef.current?.focus({ preventScroll: true })
+  }, [active])
   return (
     <main className="info">
       <GlazeCeiling />
@@ -13,7 +17,7 @@ export function Info() {
       </a>
 
       <div className="info-inner">
-        <h1 className="info-title rise" style={{ '--r': 0 } as CSSProperties}>
+        <h1 ref={titleRef} tabIndex={-1} className="info-title rise" style={{ '--r': 0 } as CSSProperties}>
           The Best Cannabis delivery platform is on the way
         </h1>
 
@@ -33,9 +37,12 @@ export function Info() {
         <p className="info-listing rise" style={{ '--r': 3 } as CSSProperties}>
           CANNABIS PRODUCTS DELIVERY IN CALIFORNIA
         </p>
+        <svg className="info-logo rise" viewBox="450 1475 3270 1215" role="img" aria-label="Frost" style={{ '--r': 4 } as CSSProperties}>
+          <image href="/brand/frost-logo.png" width="4167" height="4167" />
+        </svg>
       </div>
 
-      <p className="info-license rise" style={{ '--r': 4 } as CSSProperties}>
+      <p className="info-license rise" style={{ '--r': 5 } as CSSProperties}>
         License Number: C9-0000707-LIC
       </p>
     </main>

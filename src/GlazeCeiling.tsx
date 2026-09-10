@@ -60,10 +60,7 @@ void main() {
   float fade = 1.0 - smoothstep(uRes.y - 90.0, uRes.y, p.y);
   a *= fade;
 
-  float sh = (1.0 - smoothstep(-8.0, 26.0, d - 14.0)) * 0.26 * fade;
-  vec3 shadow = vec3(0.129, 0.267, 0.361);
-
-  fragColor = vec4(col * a + shadow * sh * (1.0 - a), a + sh * (1.0 - a));
+  fragColor = vec4(col * a, a);
 }
 `
 

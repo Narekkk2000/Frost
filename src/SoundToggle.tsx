@@ -1,4 +1,4 @@
-export function SoundToggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
+export function SoundToggle({ on, playing, onToggle }: { on: boolean; playing: boolean; onToggle: () => void }) {
   return (
     <button
       type="button"
@@ -6,6 +6,7 @@ export function SoundToggle({ on, onToggle }: { on: boolean; onToggle: () => voi
       className={`sound${on ? ' on' : ''}`}
       onClick={onToggle}
       aria-pressed={on}
+      title={on && !playing ? 'Sound enabled — starts with your first tap or keypress' : undefined}
       aria-label={on ? 'Mute melting sound' : 'Unmute melting sound'}
     >
       <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">

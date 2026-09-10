@@ -242,15 +242,17 @@ type Engine = ReturnType<typeof createEngine>
 export function useMeltAudio(progress: number) {
   const engineRef = useRef<Engine | null>(null)
   const progressRef = useRef(progress)
-  const requestedRef = useRef(false)
-  const chosenRef = useRef(false)
-  const [on, setOn] = useState(false)
+  const requestedRef = useRef(true)
+  // The preference starts on; playing separately reflects browser permission.
+  const [on, setOn] = useState(true)
+  const [playing, setPlaying] = useState(false)
   progressRef.current = progress
 
   const enable = useCallback((wanted: boolean) => {
     requestedRef.current = wanted && progressRef.current < 1
+    setOn(requestedRef.current)
     if (!engineRef.current && requestedRef.current) {
-      try { engineRef.current = createEngine(setOn) }
+      try { engineRef.current = createEngine(setPlaying) }
       catch { requestedRef.current = false; setOn(false); return }
     }
     engineRef.current?.setProgress(progressRef.current)
@@ -258,18 +260,14 @@ export function useMeltAudio(progress: number) {
   }, [])
 
   useEffect(() => {
+    // Start immediately where autoplay is permitted. On a fresh origin the
+    // resume promise waits for a genuine gesture; never bypass that policy.
+    enable(requestedRef.current)
     const gesture = (event: Event) => {
-      // The sound button owns its click. Auto-enabling on its pointerdown
-      // used to turn it on immediately before its click toggled it off again.
       if ((event.target as Element | null)?.closest?.('[data-sound-toggle]')) return
       if (event instanceof KeyboardEvent && (event.repeat || event.metaKey || event.ctrlKey || event.altKey)) return
-      if (progressRef.current >= 1) return
-      if (!chosenRef.current || requestedRef.current) {
-        chosenRef.current = true
-        enable(true)
-      }
+      if (requestedRef.current && progressRef.current < 1) enable(true)
     }
-    // Wheel is deliberately absent: it is not an audio-unlocking gesture.
     const events = ['pointerdown', 'keydown', 'touchend'] as const
     events.forEach((name) => window.addEventListener(name, gesture, { passive: true }))
     const visibility = () => engineRef.current?.setEnabled(requestedRef.current && !document.hidden)
@@ -284,18 +282,10 @@ export function useMeltAudio(progress: number) {
 
   useEffect(() => {
     engineRef.current?.setProgress(progress)
-    if (progress >= 1) {
-      chosenRef.current = true
-      enable(false)
-    }
+    if (progress >= 1) enable(false)
   }, [progress, enable])
 
-  const toggle = useCallback(() => {
-    chosenRef.current = true
-    // If the OS/browser suspended a requested sound, the visible off button
-    // should retry playback on the first click.
-    enable(!on)
-  }, [enable, on])
+  const toggle = useCallback(() => enable(!requestedRef.current), [enable])
 
-  return { soundOn: on, toggleSound: toggle }
+  return { soundOn: on, soundPlaying: playing, toggleSound: toggle }
 }

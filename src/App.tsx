@@ -1,8 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useMeltScrub } from './useMeltScrub'
 import { useMeltAudio } from './useMeltAudio'
 import { Info } from './Info'
-import { LiquidButton } from './LiquidButton'
 import { SoundToggle } from './SoundToggle'
 
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v))
@@ -17,7 +16,7 @@ const ANCHOR = {
 /**
  * Screen-space Y of the point just under the logo. The canvas is cover-fit, so
  * the logo drifts with the viewport — this repeats the same fit maths to keep
- * the CTA pinned under it on any screen.
+ * the scroll instruction pinned under it on any screen.
  */
 function useLogoAnchor() {
   const [y, setY] = useState(0)
@@ -37,13 +36,28 @@ function useLogoAnchor() {
   return y
 }
 
-function Teaser() {
+function Teaser({ onComplete, exiting }: { onComplete: () => void; exiting: boolean }) {
   const { canvasRef, progress, ready } = useMeltScrub('/frames/manifest.json', 'meltdown')
-  const { soundOn, toggleSound } = useMeltAudio(progress)
+  const { soundOn, soundPlaying, toggleSound } = useMeltAudio(progress)
   const anchorY = useLogoAnchor()
+  const logoPreloaded = useRef(false)
+  const completed = useRef(false)
+
+  useEffect(() => {
+    if (progress < 0.98) completed.current = false
+    if (progress >= 1 && !exiting && !completed.current) {
+      completed.current = true
+      onComplete()
+    }
+    if (progress > 0.7 && !logoPreloaded.current) {
+      logoPreloaded.current = true
+      const logo = new Image()
+      logo.src = '/brand/frost-logo.png'
+    }
+  }, [progress, exiting, onComplete])
 
   return (
-    <main className="stage">
+    <main className={`stage${exiting ? ' stage--exiting' : ''}`} inert={exiting} aria-hidden={exiting}>
       <div className="viewport">
         <picture className="ice-poster" aria-hidden="true">
           <source media="(max-width: 820px)" srcSet="/frames/meltdown/m/f000.jpg" />
@@ -55,14 +69,14 @@ function Teaser() {
           style={{ opacity: ready ? 1 : 0 }}
           aria-hidden="true"
         />
-        <div className="scrim" />
+        <SoundToggle on={soundOn} playing={soundPlaying} onToggle={toggleSound} />
 
-        <LiquidButton melt={progress} top={anchorY} />
-
-        <SoundToggle on={soundOn} onToggle={toggleSound} />
-
-        <div className="scroll-cue" style={{ opacity: 1 - ramp(progress, 0.02, 0.09) }}>
-          <span className="scroll-cue-drop" />
+        <div className="scroll-cue" style={{ top: `${anchorY}px`, opacity: 1 - ramp(progress, 0.88, 1) }}>
+          <span>Scroll to melt</span>
+          <svg className="scroll-cue-icon" viewBox="0 0 24 32" width="24" height="32" fill="none" aria-hidden="true">
+            <path d="M12 2C12 2 7 8.1 7 11a5 5 0 0 0 10 0C17 8.1 12 2 12 2Z" fill="currentColor" />
+            <path d="m7 24 5 5 5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
         </div>
 
         <div className="meter" style={{ transform: `scaleX(${progress})` }} />
@@ -71,21 +85,38 @@ function Teaser() {
   )
 }
 
-/** '#/info' → the content page, anything else → the teaser */
+/** The incoming page stays mounted as the crossfade becomes the active route. */
 export default function App() {
   const [hash, setHash] = useState(() => window.location.hash)
+  const [revealing, setRevealing] = useState(false)
+  const onInfo = hash.startsWith('#/info')
+  const beginReveal = useCallback(() => setRevealing(true), [])
+
   useEffect(() => {
-    const onHash = () => setHash(window.location.hash)
+    const onHash = () => {
+      setHash(window.location.hash)
+      setRevealing(false)
+      window.scrollTo(0, 0)
+    }
     window.addEventListener('hashchange', onHash)
     return () => window.removeEventListener('hashchange', onHash)
   }, [])
 
-  const onInfo = hash.startsWith('#/info')
-
-  // the teaser is a 520vh scrub track, so always land at the top on a switch
   useEffect(() => {
-    window.scrollTo(0, 0)
-  }, [onInfo])
+    if (!revealing || onInfo) return
+    const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches
+    const timer = setTimeout(() => { window.location.hash = '/info' }, reduced ? 0 : 900)
+    return () => clearTimeout(timer)
+  }, [revealing, onInfo])
 
-  return onInfo ? <Info /> : <Teaser />
+  return (
+    <div className="experience">
+      {!onInfo && <Teaser key="teaser" onComplete={beginReveal} exiting={revealing} />}
+      {(onInfo || revealing) && (
+        <div key="info" inert={!onInfo} aria-hidden={!onInfo} className={`info-page${onInfo ? '' : ' info-page--entering'}`}>
+          <Info active={onInfo} />
+        </div>
+      )}
+    </div>
+  )
 }
