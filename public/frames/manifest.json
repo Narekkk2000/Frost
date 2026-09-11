@@ -1,19 +1,25 @@
 {
-  "meltdown": {
+  "hero": {
+    "duration": 10.010021,
+    "audio": "/audio/hero-v3.m4a",
     "desktop": {
-      "count": 398,
-      "dir": "meltdown/d",
+      "count": 300,
+      "dir": "hero-v3/d",
+      "width": 1600,
+      "height": 900,
+      "extension": "webp",
       "keyframes": {
-        "step": 12,
-        "directory": "keyframes"
+        "step": 12
       }
     },
     "mobile": {
       "count": 300,
-      "dir": "meltdown/m",
+      "dir": "hero-v3/m",
+      "width": 1280,
+      "height": 720,
+      "extension": "webp",
       "keyframes": {
-        "step": 12,
-        "directory": "keyframes"
+        "step": 12
       }
     }
   }

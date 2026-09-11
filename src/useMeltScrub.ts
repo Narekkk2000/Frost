@@ -1,19 +1,24 @@
 import { useEffect, useRef, useState } from 'react'
 
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v))
-type Tier = { count: number; dir: string; keyframes: { step: number; directory: string } }
+type Tier = { count: number; dir: string; extension: string; keyframes: { step: number } }
 type Manifest = Record<string, { desktop: Tier; mobile: Tier }>
 
 /**
- * Every drawable image has the original source resolution. A small, permanent
+ * Every drawable image has the full resolution of its device tier. A permanent
  * set of full-resolution keyframes spans the timeline; a bounded detail cache
  * fills in nearby frames. Fast scrolling blends the surrounding sharp images,
  * never an enlarged thumbnail, and never waits for the entire sequence.
  */
-export function useMeltScrub(manifestUrl: string, variant: string) {
+export function useMeltScrub(manifestUrl: string, variant: string, paused = false) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [progress, setProgress] = useState(0)
   const [ready, setReady] = useState(false)
+  const [introProgress, setIntroProgress] = useState(0)
+  const pausedRef = useRef(paused)
+  pausedRef.current = paused
+  const syncRef = useRef<() => void>(() => {})
+  useEffect(() => { syncRef.current() }, [paused])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -26,13 +31,16 @@ export function useMeltScrub(manifestUrl: string, variant: string) {
     const failed = new Set<number>()
     const keys = new Set<number>()
     let sorted: number[] = []
-    const mobile = matchMedia('(max-width: 820px)').matches
+    const mobile = matchMedia('(pointer: coarse)').matches
     const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches
     const detailLimit = mobile ? 16 : 18
     let tier: Tier | undefined
     let stopped = false
     let target = 0
     let current = 0
+    let introTarget = 0
+    let introCurrent = 0
+    let measured = false
     let raf = 0
     let lastTs = 0
     let lastPublished = -1
@@ -50,7 +58,7 @@ export function useMeltScrub(manifestUrl: string, variant: string) {
       return createImageBitmap(await response.blob())
     }
     const wake = () => {
-      if (!stopped && !document.hidden && !raf) raf = requestAnimationFrame(tick)
+      if (!stopped && !pausedRef.current && !document.hidden && !raf) raf = requestAnimationFrame(tick)
     }
     const remember = (i: number, bitmap: ImageBitmap) => {
       if (stopped) { bitmap.close(); return }
@@ -105,14 +113,8 @@ export function useMeltScrub(manifestUrl: string, variant: string) {
         const index = i
         pending.add(index)
         const file = `f${String(index).padStart(3, '0')}`
-        const original = `/frames/${tier.dir}/${file}.jpg`
-        const isKey = keys.has(index) && index !== 0
-        const url = isKey ? `/frames/${tier.dir}/${tier.keyframes.directory}/${file}.webp` : original
+        const url = `/frames/${tier.dir}/${file}.${tier.extension}`
         void decode(url)
-          .catch((error) => {
-            if (!isKey || stopped) throw error
-            return decode(original)
-          })
           .then((bitmap) => remember(index, bitmap))
           .catch(() => { if (!stopped) failed.add(index) })
           .finally(() => { pending.delete(index); pump() })
@@ -156,21 +158,36 @@ export function useMeltScrub(manifestUrl: string, variant: string) {
 
     function tick(ts: number) {
       raf = 0
+      if (pausedRef.current || document.hidden) { lastTs = 0; return }
       const dt = lastTs ? Math.min(0.05, (ts - lastTs) / 1000) : 1 / 60
       lastTs = ts
       current = reduced ? target : current + (target - current) * (1 - Math.exp(-dt / 0.11))
       if (Math.abs(current - target) < 0.0005) current = target
+      introCurrent = reduced ? introTarget : introCurrent + (introTarget - introCurrent) * (1 - Math.exp(-dt / 0.11))
+      if (Math.abs(introCurrent - introTarget) < 0.0005) introCurrent = introTarget
+      setIntroProgress(introCurrent)
       draw()
+      canvas!.dataset.introProgress = introCurrent.toFixed(4)
       canvas!.dataset.progress = current.toFixed(4)
       if (current !== lastPublished) { lastPublished = current; setProgress(current) }
       const center = Math.round(current * ((tier?.count ?? 1) - 1))
       if (center !== lastCenter) { lastCenter = center; pump() }
-      if (current !== target) wake()
+      if (current !== target || introCurrent !== introTarget) wake()
     }
+    const track = () => ({
+      intro: window.innerHeight * 0.9,
+      max: Math.max(1, document.documentElement.scrollHeight - window.innerHeight),
+    })
     const measure = () => {
-      const max = document.documentElement.scrollHeight - window.innerHeight
-      target = max > 0 ? clamp01(window.scrollY / max) : 0
+      if (pausedRef.current) return
+      const { intro, max } = track()
+      introTarget = clamp01(window.scrollY / intro)
+      target = clamp01((window.scrollY - intro) / Math.max(1, max - intro))
       wake()
+    }
+    const restorePosition = () => {
+      const { intro, max } = track()
+      window.scrollTo(0, introTarget < 1 ? introTarget * intro : intro + target * (max - intro))
     }
     const resize = () => {
       const dpr = Math.min(devicePixelRatio || 1, 1.5)
@@ -179,7 +196,14 @@ export function useMeltScrub(manifestUrl: string, variant: string) {
       canvas.height = Math.max(1, Math.round(canvas.clientHeight * scale))
       ctx.imageSmoothingEnabled = true
       ctx.imageSmoothingQuality = 'high'
-      measure()
+      if (measured) restorePosition()
+      else { measured = true; measure() }
+      draw()
+      wake()
+    }
+    syncRef.current = () => {
+      lastTs = 0
+      if (!pausedRef.current) { restorePosition(); wake(); pump() }
     }
     const visibility = () => { lastTs = 0; if (!document.hidden) { measure(); pump() } }
     const ro = new ResizeObserver(resize)
@@ -205,7 +229,7 @@ export function useMeltScrub(manifestUrl: string, variant: string) {
       pending.add(0)
       const poster = new Image()
       poster.decoding = 'async'
-      poster.src = `/frames/${tier.dir}/f000.jpg`
+      poster.src = `/frames/${tier.dir}/f000.${tier.extension}`
       void poster.decode().then(() => createImageBitmap(poster))
         .then((bitmap) => remember(0, bitmap))
         .catch(() => {})
@@ -215,6 +239,7 @@ export function useMeltScrub(manifestUrl: string, variant: string) {
 
     return () => {
       stopped = true
+      syncRef.current = () => {}
       controller.abort()
       cancelAnimationFrame(raf)
       ro.disconnect()
@@ -227,5 +252,5 @@ export function useMeltScrub(manifestUrl: string, variant: string) {
     }
   }, [manifestUrl, variant])
 
-  return { canvasRef, progress, ready }
+  return { canvasRef, progress, introProgress, ready }
 }

@@ -6,7 +6,7 @@ export function SoundToggle({ on, playing, onToggle }: { on: boolean; playing: b
       className={`sound${on ? ' on' : ''}`}
       onClick={onToggle}
       aria-pressed={on}
-      title={on && !playing ? 'Sound enabled — starts with your first tap or keypress' : undefined}
+      title={on && !playing ? 'Sound enabled — plays while melting; tap or press a key to activate' : undefined}
       aria-label={on ? 'Mute melting sound' : 'Unmute melting sound'}
     >
       <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
