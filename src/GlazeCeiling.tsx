@@ -11,6 +11,7 @@ uniform vec2 uRes;
 uniform float uDpr;
 uniform float uBand;
 uniform float uTime;
+uniform float uFade;
 uniform vec4 uDrips[${MAX_DRIPS}];
 uniform vec3 uDrops[${MAX_DROPS}];
 out vec4 fragColor;
@@ -56,9 +57,10 @@ void main() {
 
   float aa = max(fwidth(d), 0.55);
   float a = 1.0 - smoothstep(-aa, aa, d);
-  // droplets dissolve into the page rather than clipping at the canvas edge
-  float fade = 1.0 - smoothstep(uRes.y - 90.0, uRes.y, p.y);
-  a *= fade;
+  // Where the canvas stops short of the page the droplets dissolve into it
+  // rather than clipping at its edge. Running to the bottom of the screen,
+  // there is nothing to hide: uFade is 0 and they fall clean off.
+  if (uFade > 0.0) a *= 1.0 - smoothstep(uRes.y - uFade, uRes.y, p.y);
 
   fragColor = vec4(col * a, a);
 }
@@ -71,6 +73,8 @@ void main() {
  */
 export function GlazeCeiling() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  // a phone gives the glaze the whole page to fall through (see index.css)
+  const toBottom = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches
   const [flat, setFlat] = useState(
     () =>
       typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches,
@@ -98,7 +102,9 @@ export function GlazeCeiling() {
     const dispose = createSketch(canvas, FRAG, (u, t, w, h) => {
       const dt = last ? t - last : 0.016
       last = t
-      const band = Math.min(76, Math.max(52, h * 0.2))
+      // Over the whole page the canvas height says nothing about how thick
+      // the pour should read, so hold the band where the short canvas had it.
+      const band = toBottom ? 52 : Math.min(76, Math.max(52, h * 0.2))
       // the glaze eases into motion as the page reveals, then keeps running
       const flow = Math.min(1, t / 1.6) * (0.82 + 0.18 * Math.sin(t * 0.31))
       field.setGeometry({
@@ -109,16 +115,17 @@ export function GlazeCeiling() {
       field.step(dt, flow)
       u.f('uBand', band)
       u.f('uTime', t)
+      u.f('uFade', toBottom ? 0 : 90)
       u.arr4('uDrips', field.drips)
       u.arr3('uDrops', field.drops)
-    })
+    }, toBottom ? 0.75 : 1)
 
     if (!dispose) {
       setFlat(true)
       return
     }
     return dispose
-  }, [flat])
+  }, [flat, toBottom])
 
   if (flat) return <div className="glaze-flat" aria-hidden="true" />
   return <canvas className="glaze-canvas" ref={canvasRef} aria-hidden="true" />

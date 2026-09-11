@@ -148,12 +148,17 @@ body {
   .viewport,
   .melt-touch .viewport {
     position: fixed;
-    top: 0;
-    left: 0;
-    width: 100dvh;
-    height: 100dvw;
-    transform-origin: top left;
-    transform: rotate(90deg) translateY(-100%);
+    top: 50%;
+    left: 50%;
+    /* dvh shrinks while Safari shows its toolbars, which would leave the
+       turned frame short of the screen at one end. The large viewport is
+       the whole screen, and centring spends any surplus evenly. */
+    width: 100vh;
+    width: 100lvh;
+    height: 100vw;
+    height: 100lvw;
+    transform-origin: center;
+    transform: translate(-50%, -50%) rotate(90deg);
   }
 }
 
@@ -445,14 +450,16 @@ body {
   .info-page,
   .info-page--entering {
     position: fixed;
-    top: 0;
-    left: 0;
+    top: 50%;
+    left: 50%;
     z-index: 10;
-    width: 100dvh;
-    height: 100dvw;
+    width: 100vh;
+    width: 100lvh;
+    height: 100vw;
+    height: 100lvw;
     overflow-y: auto;
-    transform-origin: top left;
-    transform: rotate(90deg) translateY(-100%);
+    transform-origin: center;
+    transform: translate(-50%, -50%) rotate(90deg);
   }
 
   .info-page--entering {
@@ -473,5 +480,13 @@ body {
 
   .info-phone {
     font-size: clamp(1.55rem, 4dvh, 2.15rem);
+  }
+}
+
+/* A phone lets the drips run the whole page instead of stopping at a line
+   partway down, so the glaze needs the full page to fall through. */
+@media (pointer: coarse) {
+  .glaze-canvas {
+    height: 100%;
   }
 }
