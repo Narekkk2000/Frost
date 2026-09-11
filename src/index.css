@@ -41,6 +41,12 @@ body {
   height: 100vh;
   height: 100dvh;
   overflow: hidden;
+  background: var(--sky) url(/brand/reveal-background.webp) center / cover no-repeat;
+}
+
+.film {
+  position: absolute;
+  inset: 0;
 }
 
 .ice {
@@ -83,62 +89,72 @@ body {
   pointer-events: none;
 }
 
-.intro-content {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: clamp(1.5rem, 5vh, 3rem);
+.intro-background {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
-.intro-logo {
-  width: clamp(125px, 14vw, 210px);
+.intro-content {
+  position: absolute;
+  top: calc(50% - clamp(10px, 1.04vw, 20px));
+  left: 50%;
+  transform: translateX(-50%);
+  width: clamp(150px, 11.46vw, 220px);
+  line-height: 0;
+}
+
+.intro-prompt {
+  display: block;
+  width: 100%;
   height: auto;
 }
 
-.melt-intro h1 {
-  font-family: var(--font-title);
-  font-weight: 400;
-  font-size: clamp(2.5rem, 7vw, 6.5rem);
-  line-height: 1.1;
-  letter-spacing: -0.035em;
-}
-
-.rotate-prompt {
+/* Safari's native scroll and changing browser bars cannot move this stage. */
+.melt-touch body {
   position: fixed;
   inset: 0;
-  z-index: 30;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  gap: 1.5rem;
-  padding: 2rem;
-  background: var(--blue);
-  color: var(--ink);
-  text-align: center;
-  touch-action: none;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 
-.rotate-prompt h1 {
-  font-family: var(--font-title);
-  font-weight: 400;
-  font-size: clamp(1.8rem, 7vw, 2.7rem);
-  line-height: 1.1;
+.melt-touch .stage {
+  height: 100dvh;
 }
 
-.rotate-prompt p {
-  max-width: 24ch;
-  font-size: 0.9rem;
-  line-height: 1.7;
+.melt-touch .viewport {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  touch-action: pinch-zoom;
+  overscroll-behavior: none;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
-.scroll-cue-icon {
-  animation: melt-cue 1.8s ease-in-out infinite;
-}
+/* An upright phone gets the landscape frame turned to face it, straight
+   away and without an instruction screen. Turning the phone drops this
+   transform and the melt carries on from the same position. */
+@media (pointer: coarse) and (orientation: portrait) {
+  .stage {
+    height: 100dvh;
+  }
 
-@keyframes melt-cue {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(5px); }
+  .viewport,
+  .melt-touch .viewport {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100dvh;
+    height: 100dvw;
+    transform-origin: top left;
+    transform: rotate(90deg) translateY(-100%);
+  }
 }
 
 .stage--exiting .viewport {
@@ -161,8 +177,8 @@ body {
 
 .sound {
   position: absolute;
-  top: 1.4rem;
-  right: 1.4rem;
+  top: max(1.4rem, env(safe-area-inset-top));
+  right: max(1.4rem, env(safe-area-inset-right));
   z-index: 6;
   display: grid;
   place-items: center;
@@ -196,7 +212,8 @@ body {
   flex-direction: column;
   align-items: center;
   text-align: center;
-  padding: clamp(12rem, 24vh, 15rem) 1.4rem clamp(2rem, 5vh, 3.5rem);
+  padding: clamp(12rem, 24vh, 15rem) max(1.4rem, env(safe-area-inset-right))
+    max(clamp(2rem, 5vh, 3.5rem), env(safe-area-inset-bottom)) max(1.4rem, env(safe-area-inset-left));
   background: var(--blue);
   color: var(--ink);
   gap: 1.5rem;
@@ -259,8 +276,8 @@ body {
 
 .info-back {
   position: absolute;
-  top: 1.4rem;
-  left: 1.3rem;
+  top: max(1.4rem, env(safe-area-inset-top));
+  left: max(1.3rem, env(safe-area-inset-left));
   z-index: 4;
   display: grid;
   place-items: center;
@@ -370,9 +387,6 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .scroll-cue-icon {
-    animation: none;
-  }
   .rise {
     animation-duration: 0.01s;
   }
@@ -388,5 +402,32 @@ body {
   .info-actions {
     flex-direction: column;
     gap: 1rem;
+  }
+}
+
+@media (max-height: 500px) and (orientation: landscape) {
+  .info { padding-top: 5.5rem; gap: 1rem; }
+  .glaze-canvas { height: 110px; }
+  .info-inner { gap: 0.75rem; }
+  .info-title { font-size: clamp(1.6rem, 4vw, 2.15rem); max-width: 27ch; }
+  .info-actions { margin-top: 0.25rem; }
+  .info-logo { width: 170px; margin-top: 0.25rem; }
+}
+
+/* Keep the complete melt in view when Safari's bars leave a very short
+   landscape viewport. Feather the empty footage edges into the full-screen
+   backdrop; no letterbox, stretched pixels, or extra live blur passes. */
+@media (pointer: coarse) and (min-aspect-ratio: 12/5) {
+  .viewport {
+    background: linear-gradient(#4590ba, #5298c3 30%, #5b9ecd 55%, #68abe0 85%, #529bca);
+  }
+  .film {
+    width: 220dvh;
+    max-width: 100%;
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 5%, #000 95%, transparent);
+    mask-image: linear-gradient(to right, transparent, #000 5%, #000 95%, transparent);
   }
 }

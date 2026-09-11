@@ -41,6 +41,15 @@ export function useMeltScrub(manifestUrl: string, variant: string, paused = fals
     let introTarget = 0
     let introCurrent = 0
     let measured = false
+    let lastPaint = 0
+    const touch = { id: -1, x: 0, y: 0, axis: '', start: 0, distance: 1 }
+    let touchPosition = 0
+    const introShare = 0.12
+    const previousOverflow = document.documentElement.style.overflow
+    if (mobile) {
+      document.documentElement.classList.add('melt-touch')
+      document.documentElement.style.overflow = 'hidden'
+    }
     let raf = 0
     let lastTs = 0
     let lastPublished = -1
@@ -60,15 +69,25 @@ export function useMeltScrub(manifestUrl: string, variant: string, paused = fals
     const wake = () => {
       if (!stopped && !pausedRef.current && !document.hidden && !raf) raf = requestAnimationFrame(tick)
     }
+    const desiredDetail = () => {
+      if (!tier) return []
+      const center = Math.floor(current * (tier.count - 1))
+      const landing = Math.floor(target * (tier.count - 1))
+      const direction = target >= current ? 1 : -1
+      const nearby = [center, center + 1, center - 1, landing, landing + 1]
+      for (let n = 2; n <= 7; n++) nearby.push(center + n * direction, center - n * direction)
+      // Limit the desired set BEFORE checking the cache. Otherwise one frame
+      // can evict another desired frame and start an endless fetch/decode loop.
+      return [...new Set(nearby)].filter(i => i >= 0 && i < tier!.count && !keys.has(i)).slice(0, detailLimit)
+    }
     const remember = (i: number, bitmap: ImageBitmap) => {
       if (stopped) { bitmap.close(); return }
       frames.get(i)?.close()
       frames.set(i, bitmap)
-      const center = current * (tier!.count - 1)
-      const goal = target * (tier!.count - 1)
-      const distance = (n: number) => Math.min(Math.abs(n - center), Math.abs(n - goal) + 8)
+      const wanted = desiredDetail()
+      const priority = (n: number) => { const rank = wanted.indexOf(n); return rank < 0 ? Infinity : rank }
       const detail = [...frames.keys()].filter((n) => !keys.has(n))
-        .sort((a, b) => distance(a) - distance(b))
+        .sort((a, b) => priority(a) - priority(b))
       for (const n of detail.slice(detailLimit)) {
         frames.get(n)?.close()
         frames.delete(n)
@@ -84,20 +103,26 @@ export function useMeltScrub(manifestUrl: string, variant: string, paused = fals
       if (stopped || !tier || document.hidden) return
       const pos = current * (tier.count - 1)
       const goal = target * (tier.count - 1)
-      const center = Math.floor(pos)
-      const landing = Math.floor(goal)
       const step = tier.keyframes.step
       const wanted = (i: number) => i >= 0 && i < tier!.count && !frames.has(i) && !pending.has(i) && !failed.has(i)
       // First cover both sides of the current and intended positions. Then
       // complete the full timeline in the background, at the same resolution.
       const brackets = [Math.floor(pos / step) * step, Math.ceil(pos / step) * step,
         Math.floor(goal / step) * step, Math.min(Math.ceil(goal / step) * step, tier.count - 1)]
-      const remainingKeys = [...keys].sort((a, b) => Math.abs(a - pos) - Math.abs(b - pos))
-      const keyQueue = [...new Set([...brackets, ...remainingKeys])].filter((i) => keys.has(i) && wanted(i))
-      const nearby = [center, center + 1, center - 1, landing, landing + 1]
-      const direction = target >= current ? 1 : -1
-      for (let n = 2; n <= 7; n++) nearby.push(center + n * direction, center - n * direction)
-      const detailQueue = [...new Set(nearby)].filter((i) => !keys.has(i) && wanted(i))
+      // Cover the whole timeline early, then fill it in. A slow connection
+      // must not spend every request loading frames behind a moving finger.
+      const keyList = [...keys]
+      const coverage: number[] = [keyList[0], keyList[keyList.length - 1]]
+      const ranges = [[0, keyList.length - 1]]
+      while (ranges.length) {
+        const [lo, hi] = ranges.shift()!
+        if (hi - lo <= 1) continue
+        const mid = (lo + hi) >>> 1
+        coverage.push(keyList[mid])
+        ranges.push([lo, mid], [mid, hi])
+      }
+      const keyQueue = [...new Set([...brackets, ...coverage])].filter((i) => keys.has(i) && wanted(i))
+      const detailQueue = desiredDetail().filter(wanted)
       let keyPending = [...pending].filter((i) => keys.has(i)).length
       let detailPending = pending.size - keyPending
       while (pending.size < 6) {
@@ -154,6 +179,7 @@ export function useMeltScrub(manifestUrl: string, variant: string, paused = fals
       if (!shown) { shown = true; setReady(true) }
       canvas.dataset.sourceWidth = String(Math.min(a.width, b.width))
       canvas.dataset.frameGap = String(hi - lo)
+      canvas.dataset.framePosition = (lo + (hi - lo) * mix).toFixed(2)
     }
 
     function tick(ts: number) {
@@ -161,15 +187,26 @@ export function useMeltScrub(manifestUrl: string, variant: string, paused = fals
       if (pausedRef.current || document.hidden) { lastTs = 0; return }
       const dt = lastTs ? Math.min(0.05, (ts - lastTs) / 1000) : 1 / 60
       lastTs = ts
-      current = reduced ? target : current + (target - current) * (1 - Math.exp(-dt / 0.11))
-      if (Math.abs(current - target) < 0.0005) current = target
+      const difference = (target - current) * (1 - Math.exp(-dt / (mobile ? 0.075 : 0.11)))
+      // Touch momentum never skips the film in a single fling. Rendering keeps
+      // its own clock instead of following Safari's viewport/scroll changes.
+      const step = mobile ? Math.max(-dt * 0.18, Math.min(dt * 0.18, difference)) : difference
+      current = reduced ? target : current + step
+      if (mobile && touch.id !== -1 && current >= 1) current = 0.999
+      if (Math.abs(current - target) < 0.0005 && !(mobile && touch.id !== -1 && target === 1)) current = target
       introCurrent = reduced ? introTarget : introCurrent + (introTarget - introCurrent) * (1 - Math.exp(-dt / 0.11))
       if (Math.abs(introCurrent - introTarget) < 0.0005) introCurrent = introTarget
-      setIntroProgress(introCurrent)
-      draw()
-      canvas!.dataset.introProgress = introCurrent.toFixed(4)
-      canvas!.dataset.progress = current.toFixed(4)
-      if (current !== lastPublished) { lastPublished = current; setProgress(current) }
+      const settled = current === target && introCurrent === introTarget
+      // High-refresh phones do not need to composite two large bitmaps 120
+      // times per second for a 30 fps source. Always publish the final frame.
+      if (!mobile || ts - lastPaint >= 1000 / 60 - 1 || settled) {
+        lastPaint = ts
+        setIntroProgress(introCurrent)
+        draw()
+        canvas!.dataset.introProgress = introCurrent.toFixed(4)
+        canvas!.dataset.progress = current.toFixed(4)
+        if (current !== lastPublished) { lastPublished = current; setProgress(current) }
+      }
       const center = Math.round(current * ((tier?.count ?? 1) - 1))
       if (center !== lastCenter) { lastCenter = center; pump() }
       if (current !== target || introCurrent !== introTarget) wake()
@@ -179,21 +216,25 @@ export function useMeltScrub(manifestUrl: string, variant: string, paused = fals
       max: Math.max(1, document.documentElement.scrollHeight - window.innerHeight),
     })
     const measure = () => {
-      if (pausedRef.current) return
+      if (pausedRef.current || mobile) return
       const { intro, max } = track()
       introTarget = clamp01(window.scrollY / intro)
       target = clamp01((window.scrollY - intro) / Math.max(1, max - intro))
       wake()
     }
     const restorePosition = () => {
+      if (mobile) return
       const { intro, max } = track()
       window.scrollTo(0, introTarget < 1 ? introTarget * intro : intro + target * (max - intro))
     }
     const resize = () => {
       const dpr = Math.min(devicePixelRatio || 1, 1.5)
       const scale = Math.min(dpr, 2000 / Math.max(canvas.clientWidth, canvas.clientHeight))
-      canvas.width = Math.max(1, Math.round(canvas.clientWidth * scale))
-      canvas.height = Math.max(1, Math.round(canvas.clientHeight * scale))
+      const width = Math.max(1, Math.round(canvas.clientWidth * scale))
+      const height = Math.max(1, Math.round(canvas.clientHeight * scale))
+      if (canvas.width === width && canvas.height === height && measured) return
+      canvas.width = width
+      canvas.height = height
       ctx.imageSmoothingEnabled = true
       ctx.imageSmoothingQuality = 'high'
       if (measured) restorePosition()
@@ -203,8 +244,59 @@ export function useMeltScrub(manifestUrl: string, variant: string, paused = fals
     }
     syncRef.current = () => {
       lastTs = 0
+      touch.id = -1
       if (!pausedRef.current) { restorePosition(); wake(); pump() }
     }
+    const setTouchPosition = (position: number) => {
+      touchPosition = clamp01(position)
+      introTarget = clamp01(touchPosition / introShare)
+      target = clamp01((touchPosition - introShare) / (1 - introShare))
+      wake()
+      pump()
+    }
+    const touchStart = (event: TouchEvent) => {
+      if (!mobile || pausedRef.current || event.touches.length !== 1) return
+      if (event.target instanceof Element && event.target.closest('button, a')) return
+      const finger = event.touches[0]
+      touch.id = finger.identifier
+      touch.x = finger.clientX
+      touch.y = finger.clientY
+      touch.axis = ''
+      touch.start = touchPosition
+    }
+    const touchMove = (event: TouchEvent) => {
+      if (touch.id === -1 || pausedRef.current || event.touches.length !== 1) return
+      const finger = [...event.touches].find(finger => finger.identifier === touch.id)
+      if (!finger) return
+      const dx = touch.x - finger.clientX, dy = touch.y - finger.clientY
+      if (!touch.axis && Math.max(Math.abs(dx), Math.abs(dy)) < 5) return
+      if (!touch.axis) {
+        touch.axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y'
+        touch.distance = touch.axis === 'x' ? Math.max(600, innerWidth * 1.05) : Math.max(480, innerHeight * 1.8)
+      }
+      event.preventDefault()
+      setTouchPosition(touch.start + (touch.axis === 'x' ? dx : dy) / touch.distance)
+    }
+    const touchEnd = () => { touch.id = -1; wake() }
+    const wheel = (event: WheelEvent) => {
+      if (!mobile || pausedRef.current || event.ctrlKey) return
+      event.preventDefault()
+      const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY
+      setTouchPosition(touchPosition + delta * (event.deltaMode === 1 ? 16 : 1) / Math.max(600, innerHeight * 1.8))
+    }
+    const keyboard = (event: KeyboardEvent) => {
+      if (!mobile || pausedRef.current || (event.target instanceof Element && event.target.closest('button, a, input'))) return
+      const direction = ['ArrowDown', 'ArrowRight', 'PageDown', ' '].includes(event.key) ? 1
+        : ['ArrowUp', 'ArrowLeft', 'PageUp'].includes(event.key) ? -1 : 0
+      if (direction) { event.preventDefault(); setTouchPosition(touchPosition + direction * 0.15) }
+    }
+    const surface = canvas.closest<HTMLElement>('.viewport')!
+    surface.addEventListener('touchstart', touchStart, { passive: true })
+    surface.addEventListener('touchmove', touchMove, { passive: false })
+    surface.addEventListener('touchend', touchEnd)
+    surface.addEventListener('touchcancel', touchEnd)
+    surface.addEventListener('wheel', wheel, { passive: false })
+    window.addEventListener('keydown', keyboard)
     const visibility = () => { lastTs = 0; if (!document.hidden) { measure(); pump() } }
     const ro = new ResizeObserver(resize)
     ro.observe(canvas)
@@ -246,6 +338,16 @@ export function useMeltScrub(manifestUrl: string, variant: string, paused = fals
       window.removeEventListener('scroll', measure)
       window.removeEventListener('resize', resize)
       document.removeEventListener('visibilitychange', visibility)
+      surface.removeEventListener('touchstart', touchStart)
+      surface.removeEventListener('touchmove', touchMove)
+      surface.removeEventListener('touchend', touchEnd)
+      surface.removeEventListener('touchcancel', touchEnd)
+      surface.removeEventListener('wheel', wheel)
+      window.removeEventListener('keydown', keyboard)
+      if (mobile) {
+        document.documentElement.classList.remove('melt-touch')
+        document.documentElement.style.overflow = previousOverflow
+      }
       history.scrollRestoration = restoration
       frames.forEach((bitmap) => bitmap.close())
       frames.clear()
