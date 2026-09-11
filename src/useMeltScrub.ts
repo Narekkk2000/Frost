@@ -220,7 +220,13 @@ export function useMeltScrub(manifestUrl: string, variant: string, paused = fals
       if (pausedRef.current || mobile) return
       const { intro, max } = track()
       introTarget = clamp01(window.scrollY / intro)
-      target = clamp01((window.scrollY - intro) / Math.max(1, max - intro))
+      // Fractional display scaling rounds scrollHeight and innerHeight apart,
+      // so the computed end of the track can sit a fraction of a pixel past
+      // where the page will actually scroll. Reaching the bottom is the melt
+      // being over; without this it stops a hair short and never reveals.
+      target = window.scrollY >= max - 1.5
+        ? 1
+        : clamp01((window.scrollY - intro) / Math.max(1, max - intro))
       wake()
     }
     const restorePosition = () => {
