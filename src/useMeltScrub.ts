@@ -32,6 +32,7 @@ export function useMeltScrub(manifestUrl: string, variant: string, paused = fals
     const keys = new Set<number>()
     let sorted: number[] = []
     const mobile = matchMedia('(pointer: coarse)').matches
+    const upright = matchMedia('(orientation: portrait)')
     const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches
     const detailLimit = mobile ? 16 : 18
     let tier: Tier | undefined
@@ -42,7 +43,7 @@ export function useMeltScrub(manifestUrl: string, variant: string, paused = fals
     let introCurrent = 0
     let measured = false
     let lastPaint = 0
-    const touch = { id: -1, x: 0, y: 0, axis: '', start: 0, distance: 1 }
+    const touch = { id: -1, x: 0, y: 0, axis: '', start: 0, distance: 1, sideways: false }
     let touchPosition = 0
     const introShare = 0.12
     const previousOverflow = document.documentElement.style.overflow
@@ -262,13 +263,18 @@ export function useMeltScrub(manifestUrl: string, variant: string, paused = fals
       touch.x = finger.clientX
       touch.y = finger.clientY
       touch.axis = ''
+      touch.sideways = mobile && upright.matches
       touch.start = touchPosition
     }
     const touchMove = (event: TouchEvent) => {
       if (touch.id === -1 || pausedRef.current || event.touches.length !== 1) return
       const finger = [...event.touches].find(finger => finger.identifier === touch.id)
       if (!finger) return
-      const dx = touch.x - finger.clientX, dy = touch.y - finger.clientY
+      // An upright phone shows the stage turned a quarter turn, and the hand
+      // turns with it: the swipe that reads as upward then runs toward the
+      // device's right edge, the opposite of the x axis held in landscape.
+      const dx = (touch.x - finger.clientX) * (touch.sideways ? -1 : 1)
+      const dy = touch.y - finger.clientY
       if (!touch.axis && Math.max(Math.abs(dx), Math.abs(dy)) < 5) return
       if (!touch.axis) {
         touch.axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y'

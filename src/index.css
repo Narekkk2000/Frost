@@ -175,6 +175,11 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes page-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
 .sound {
   position: absolute;
   top: max(1.4rem, env(safe-area-inset-top));
@@ -398,14 +403,16 @@ body {
   }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 640px) and (pointer: fine),
+  (max-width: 640px) and (orientation: landscape) {
   .info-actions {
     flex-direction: column;
     gap: 1rem;
   }
 }
 
-@media (max-height: 500px) and (orientation: landscape) {
+@media (max-height: 500px) and (orientation: landscape),
+  (pointer: coarse) and (orientation: portrait) and (max-width: 500px) {
   .info { padding-top: 5.5rem; gap: 1rem; }
   .glaze-canvas { height: 110px; }
   .info-inner { gap: 0.75rem; }
@@ -429,5 +436,42 @@ body {
     transform: translateX(-50%);
     -webkit-mask-image: linear-gradient(to right, transparent, #000 5%, #000 95%, transparent);
     mask-image: linear-gradient(to right, transparent, #000 5%, #000 95%, transparent);
+  }
+}
+
+/* The contact page meets an upright phone the same way the melt does, so
+   the quarter turn the reader already made still reads. */
+@media (pointer: coarse) and (orientation: portrait) {
+  .info-page,
+  .info-page--entering {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 10;
+    width: 100dvh;
+    height: 100dvw;
+    overflow-y: auto;
+    transform-origin: top left;
+    transform: rotate(90deg) translateY(-100%);
+  }
+
+  .info-page--entering {
+    animation-name: page-fade;
+  }
+
+  .info {
+    min-height: 100%;
+  }
+
+  .info-title {
+    font-size: clamp(1.6rem, 4dvh, 2.15rem);
+  }
+
+  .info-sub {
+    font-size: clamp(1.02rem, 2.5dvh, 1.42rem);
+  }
+
+  .info-phone {
+    font-size: clamp(1.55rem, 4dvh, 2.15rem);
   }
 }
